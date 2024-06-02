@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgerrcode"
-	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -21,6 +21,14 @@ type UserExistsError struct {
 
 func (e *UserExistsError) Error() string {
 	return fmt.Sprintf("User %s exists", e.Username)
+}
+
+type UserNotFoundError struct {
+	Username string
+}
+
+func (e *UserNotFoundError) Error() string {
+	return fmt.Sprintf("User %s not found", e.Username)
 }
 
 func NewDatabase(connString string) (*Database, error) {
@@ -54,4 +62,21 @@ func (d *Database) CreateUser(ctx context.Context, username string, password str
 		return err
 	}
 	return nil
+}
+
+func (d *Database) GetUserHashedPassword(ctx context.Context, username string) (string, error) {
+	query := `
+		SELECT password 
+		FROM auth_user 
+		WHERE username = $1`
+
+	row := d.pool.QueryRow(ctx, query, username)
+
+	var password string
+
+	err := row.Scan(&password)
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("%w", &UserNotFoundError{Username: username})
+	}
+	return password, nil
 }

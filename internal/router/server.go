@@ -25,6 +25,7 @@ func NewRouter(address string, handl *handlers.HandlerSet, middlewares ...Middle
 		r.Use(m.Handle)
 	}
 	r.Post("/api/user/register", handl.HandleRegisterUser)
+	r.Post("/api/user/login", handl.HandleLogin)
 
 	return &Router{router: r, address: address}
 }

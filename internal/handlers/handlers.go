@@ -16,11 +16,96 @@ type HandlerSet struct {
 	database             *db.Database
 }
 
+var (
+	couldNotParseBody = errors.New("could not parse body")
+	authDataEmpty     = errors.New("login or password cannot be empty")
+)
+
 func NewHandlerSet(secret []byte, cookieExpiresSecs int, database *db.Database) *HandlerSet {
 	return &HandlerSet{
 		secret:               secret,
 		cookieExpiresSeconds: cookieExpiresSecs,
 		database:             database,
+	}
+}
+
+func (h *HandlerSet) parseAuthData(body []byte) (username string, password string, err error) {
+
+	var data struct {
+		Username string `json:"login"`
+		Password string `json:"password"`
+	}
+
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		return "", "", couldNotParseBody
+	}
+
+	if data.Username == "" || data.Password == "" {
+		return "", "", authDataEmpty
+	}
+
+	return data.Username, data.Password, nil
+
+}
+
+func (h *HandlerSet) handleAuthErrors(err error, w http.ResponseWriter) {
+
+	if errors.Is(err, couldNotParseBody) {
+		http.Error(w, "Could not parse body",
+			http.StatusBadRequest)
+	} else if errors.Is(err, authDataEmpty) {
+		http.Error(w, "Login and password cannot be empty",
+			http.StatusBadRequest)
+	} else {
+		http.Error(w, "Unknown error", http.StatusInternalServerError)
+	}
+}
+
+func (h *HandlerSet) HandleLogin(w http.ResponseWriter, req *http.Request) {
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(w, "Something went wrong",
+			http.StatusInternalServerError)
+		return
+	}
+
+	username, password, err := h.parseAuthData(body)
+
+	if err != nil {
+		h.handleAuthErrors(err, w)
+		return
+	}
+
+	passwordInDB, err := h.database.GetUserHashedPassword(req.Context(), username)
+	if err != nil {
+		var userNotFound *db.UserNotFoundError
+		if errors.As(err, &userNotFound) {
+			http.Error(w, "User not found", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if !auth.CheckPasswordHash(password, passwordInDB) {
+		http.Error(w, "Wrong password", http.StatusUnauthorized)
+		return
+	}
+
+	err = auth.SetAuthCookie(username, w, h.secret, h.cookieExpiresSeconds)
+	if err != nil {
+		http.Error(w, "Something went wrong",
+			http.StatusInternalServerError)
+	}
+
+	w.Header().Set("content-type", "text/plain")
+
+	_, err = w.Write([]byte("success"))
+	if err != nil {
+		http.Error(w, "Something went wrong",
+			http.StatusInternalServerError)
 	}
 }
 
@@ -33,32 +118,21 @@ func (h *HandlerSet) HandleRegisterUser(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	var data struct {
-		Username string `json:"login"`
-		Password string `json:"password"`
-	}
+	username, password, err := h.parseAuthData(body)
 
-	err = json.Unmarshal(body, &data)
 	if err != nil {
-		http.Error(w, "Could not parse body",
-			http.StatusBadRequest)
+		h.handleAuthErrors(err, w)
 		return
 	}
 
-	if data.Username == "" || data.Password == "" {
-		http.Error(w, "Login and password cannot be empty",
-			http.StatusBadRequest)
-		return
-	}
-
-	hashed, err := auth.HashPassword(data.Password)
+	hashed, err := auth.HashPassword(password)
 	if err != nil {
 		http.Error(w, "Something went wrong",
 			http.StatusInternalServerError)
 		return
 	}
 
-	err = h.database.CreateUser(req.Context(), data.Username, hashed)
+	err = h.database.CreateUser(req.Context(), username, hashed)
 	if err != nil {
 		var userExists *db.UserExistsError
 		if errors.As(err, &userExists) {
@@ -69,7 +143,7 @@ func (h *HandlerSet) HandleRegisterUser(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	err = auth.SetAuthCookie(data.Username, w, h.secret, h.cookieExpiresSeconds)
+	err = auth.SetAuthCookie(username, w, h.secret, h.cookieExpiresSeconds)
 	if err != nil {
 		http.Error(w, "Something went wrong",
 			http.StatusInternalServerError)

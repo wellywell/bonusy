@@ -205,8 +205,8 @@ func TestRegisterUser(t *testing.T) {
 		{method: http.MethodPut, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
 		{method: http.MethodDelete, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
 		{method: http.MethodPost, body: wrongBody, expectedCode: http.StatusBadRequest, expectedBody: "Could not parse body\n"},
-		{method: http.MethodPost, body: emptyData1, expectedCode: http.StatusBadRequest, expectedBody: "Could not parse body\n"},
-		{method: http.MethodPost, body: emptyData2, expectedCode: http.StatusBadRequest, expectedBody: "Could not parse body\n"},
+		{method: http.MethodPost, body: emptyData1, expectedCode: http.StatusBadRequest, expectedBody: "Login and password cannot be empty\n"},
+		{method: http.MethodPost, body: emptyData2, expectedCode: http.StatusBadRequest, expectedBody: "Login and password cannot be empty\n"},
 		{method: http.MethodPost, body: goodBody, expectedCode: http.StatusOK, expectedBody: "success"},
 		{method: http.MethodPost, body: goodBody, expectedCode: http.StatusConflict, expectedBody: "User exists\n"},
 	}
@@ -223,6 +223,7 @@ func TestRegisterUser(t *testing.T) {
 			assert.NoError(t, err, "error making HTTP request")
 
 			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			assert.Equal(t, tc.expectedBody, string(resp.Body()))
 
 			if tc.expectedCode == http.StatusOK {
 
@@ -251,6 +252,104 @@ func TestRegisterUser(t *testing.T) {
 				}
 				assert.Equal(t, user, "mylogin")
 
+			}
+		})
+	}
+}
+
+func TestLoginUserNotExists(t *testing.T) {
+
+	goodBody := `{"login" : "mylogin1", "password" : "mypassword1"}`
+	emptyData1 := `{"login" : "", "password" : "mypassword1"}`
+	emptyData2 := `{"login" : "a", "password" : ""}`
+	wrongBody := "smth"
+
+	testCases := []struct {
+		method       string
+		body         string
+		expectedCode int
+		expectedBody string
+	}{
+		{method: http.MethodGet, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
+		{method: http.MethodPut, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
+		{method: http.MethodDelete, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
+		{method: http.MethodPost, body: wrongBody, expectedCode: http.StatusBadRequest, expectedBody: "Could not parse body\n"},
+		{method: http.MethodPost, body: emptyData1, expectedCode: http.StatusBadRequest, expectedBody: "Login and password cannot be empty\n"},
+		{method: http.MethodPost, body: emptyData2, expectedCode: http.StatusBadRequest, expectedBody: "Login and password cannot be empty\n"},
+		{method: http.MethodPost, body: goodBody, expectedCode: http.StatusUnauthorized, expectedBody: "User not found\n"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = "http://localhost:8080/api/user/login"
+			req.SetBody([]byte(tc.body))
+
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			assert.Equal(t, tc.expectedBody, string(resp.Body()))
+		})
+	}
+}
+
+func TestRegisterAndLogin(t *testing.T) {
+
+	goodBody := `{"login" : "mylogin1", "password" : "mypassword1"}`
+	emptyData1 := `{"login" : "", "password" : "mypassword1"}`
+	emptyData2 := `{"login" : "a", "password" : ""}`
+	wrongPassword := `{"login" : "mylogin1", "password" : "wrong"}`
+	wrongBody := "smth"
+
+	testCases := []struct {
+		method       string
+		body         string
+		expectedCode int
+		expectedBody string
+	}{
+		{method: http.MethodPost, body: wrongBody, expectedCode: http.StatusBadRequest, expectedBody: "Could not parse body\n"},
+		{method: http.MethodPost, body: emptyData1, expectedCode: http.StatusBadRequest, expectedBody: "Login and password cannot be empty\n"},
+		{method: http.MethodPost, body: emptyData2, expectedCode: http.StatusBadRequest, expectedBody: "Login and password cannot be empty\n"},
+		{method: http.MethodPost, body: wrongPassword, expectedCode: http.StatusUnauthorized, expectedBody: "Wrong password\n"},
+		{method: http.MethodPost, body: goodBody, expectedCode: http.StatusOK, expectedBody: "success"},
+	}
+
+	// register user first
+	req := resty.New().R()
+	req.Method = http.MethodPost
+	req.URL = "http://localhost:8080/api/user/register"
+	req.SetBody([]byte(goodBody))
+
+	_, err := req.Send()
+	assert.NoError(t, err, "error making HTTP request")
+
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = "http://localhost:8080/api/user/login"
+			req.SetBody([]byte(tc.body))
+
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			assert.Equal(t, tc.expectedBody, string(resp.Body()))
+
+			if tc.expectedCode == http.StatusOK {
+				// check cookie set
+				assert.NotEmpty(t, resp.Cookies())
+				// check user in cookie correct
+				cookie := resp.Cookies()[0]
+				user, err := auth.GetUser(cookie.Value, []byte("secret"))
+				if err != nil {
+					panic(err)
+				}
+				assert.Equal(t, user, "mylogin1")
 			}
 		})
 	}
