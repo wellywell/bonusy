@@ -1,29 +1,57 @@
 package db
 
 import (
-	"embed"
-	"log"
+	"context"
+	"errors"
+	"fmt"
 
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgerrcode"
+	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-//go:embed migrations/*
-var fs embed.FS
+type Database struct {
+	pool *pgxpool.Pool
+}
 
-func Configure(dsn string) {
+type UserExistsError struct {
+	Username string
+}
 
-	d, err := iofs.New(fs, "migrations")
+func (e *UserExistsError) Error() string {
+	return fmt.Sprintf("User %s exists", e.Username)
+}
+
+func NewDatabase(connString string) (*Database, error) {
+
+	Configure(connString)
+
+	ctx := context.Background()
+	p, err := pgxpool.New(ctx, connString)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", d, dsn)
+
+	return &Database{
+		pool: p,
+	}, nil
+}
+
+func (d *Database) CreateUser(ctx context.Context, username string, password string) error {
+
+	query := `
+		INSERT INTO auth_user (username, password)
+		VALUES ($1, $2)
+		`
+	_, err := d.pool.Exec(ctx, query, username, password)
+
 	if err != nil {
-		log.Fatal(err)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) {
+			return fmt.Errorf("%w", &UserExistsError{Username: username})
+		}
+		return err
 	}
-	if err := m.Up(); err != nil {
-		log.Fatal(err)
-	}
+	return nil
 }

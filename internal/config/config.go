@@ -1,7 +1,9 @@
 package config
 
 import (
+	"crypto/rand"
 	"flag"
+	"fmt"
 
 	"github.com/caarlos0/env/v6"
 )
@@ -16,6 +18,8 @@ type ServerConfig struct {
 	RunAddress           string `env:"RUN_ADDRESS"`
 	AccrualSystemAddress string `env:"ACCRUAL_SYSTEM_ADDRESS"`
 	DatabaseDSN          string `env:"DATABASE_URI"`
+	Secret               []byte
+	AuthCookieExpiresIn  int
 }
 
 func NewConfig() (*ServerConfig, error) {
@@ -41,6 +45,15 @@ func NewConfig() (*ServerConfig, error) {
 	if params.DatabaseDSN == "" {
 		params.DatabaseDSN = commandLineParams.DatabaseDSN
 	}
+
+	secret := make([]byte, 10)
+	_, err = rand.Read(secret)
+	if err != nil {
+		fmt.Println("error:", err)
+		return nil, err
+	}
+	params.Secret = secret
+	params.AuthCookieExpiresIn = 604800 // 7 days
 
 	return &params, nil
 }
