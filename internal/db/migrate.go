@@ -2,7 +2,7 @@ package db
 
 import (
 	"embed"
-	"log"
+	"errors"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -13,17 +13,21 @@ import (
 //go:embed migrations/*
 var fs embed.FS
 
-func Configure(dsn string) {
+func Migrate(dsn string) error {
 
 	d, err := iofs.New(fs, "migrations")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	m, err := migrate.NewWithSourceInstance("iofs", d, dsn)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if err := m.Up(); err != nil {
-		log.Fatal(err)
+		if errors.Is(err, migrate.ErrNoChange) {
+			return nil
+		}
+		return err
 	}
+	return nil
 }

@@ -19,7 +19,7 @@ func main() {
 	}
 	handlerSet := handlers.NewHandlerSet(conf.Secret, conf.AuthCookieExpiresIn, database)
 
-	r := router.NewRouter(conf.RunAddress, handlerSet)
+	r := router.NewRouter(conf, handlerSet)
 
 	err = r.ListenAndServe()
 	if err != nil {

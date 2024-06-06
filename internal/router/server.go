@@ -5,7 +5,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/wellywell/bonusy/internal/auth"
+	"github.com/wellywell/bonusy/internal/config"
 	"github.com/wellywell/bonusy/internal/handlers"
+)
+
+const (
+	compressLevel = 5
 )
 
 type Middleware interface {
@@ -17,17 +25,28 @@ type Router struct {
 	router  *chi.Mux
 }
 
-func NewRouter(address string, handl *handlers.HandlerSet, middlewares ...Middleware) *Router {
+func NewRouter(conf *config.ServerConfig, handl *handlers.HandlerSet, middlewares ...Middleware) *Router {
 
 	r := chi.NewRouter()
 
 	for _, m := range middlewares {
 		r.Use(m.Handle)
 	}
+	//r.Use(middleware.Logger)
+	r.Use(middleware.Compress(compressLevel)) // TODO test
+
 	r.Post("/api/user/register", handl.HandleRegisterUser)
 	r.Post("/api/user/login", handl.HandleLogin)
 
-	return &Router{router: r, address: address}
+	authMiddleware := &auth.AuthenticateMiddleware{Secret: conf.Secret}
+
+	r.Group(func(r chi.Router) {
+
+		r.Use(authMiddleware.Handle)
+		r.Post("/api/user/orders", handl.HandlePostUserOrder)
+	})
+
+	return &Router{router: r, address: conf.RunAddress}
 }
 
 func (r *Router) ListenAndServe() error {

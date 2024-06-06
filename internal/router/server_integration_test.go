@@ -22,6 +22,7 @@ import (
 	"github.com/ory/dockertest/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/wellywell/bonusy/internal/auth"
+	"github.com/wellywell/bonusy/internal/config"
 	"github.com/wellywell/bonusy/internal/db"
 	"github.com/wellywell/bonusy/internal/handlers"
 )
@@ -141,7 +142,12 @@ func runMain(m *testing.M) (int, error) {
 	}
 	handlerSet := handlers.NewHandlerSet([]byte("secret"), 1, database)
 
-	r := NewRouter("localhost:8080", handlerSet)
+	config := config.ServerConfig{
+		Secret:     []byte("secret"),
+		RunAddress: "localhost:8080",
+	}
+
+	r := NewRouter(&config, handlerSet)
 
 	go r.ListenAndServe()
 
@@ -353,4 +359,88 @@ func TestRegisterAndLogin(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNotAuthenticated(t *testing.T) {
+	testCases := []struct {
+		method string
+		body   string
+		path   string
+	}{
+		{method: http.MethodPost, path: "http://localhost:8080/api/user/orders"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = tc.path
+
+			resp, _ := req.Send()
+
+			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode())
+		})
+	}
+
+}
+
+func TestPostUser(t *testing.T) {
+
+	testCases := []struct {
+		method       string
+		body         string
+		expectedCode int
+		expectedBody string
+	}{
+		{method: http.MethodGet, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
+		{method: http.MethodPut, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
+		{method: http.MethodDelete, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
+		{method: http.MethodPost, body: "", expectedCode: http.StatusBadRequest, expectedBody: "Invalid order number\n"},
+		{method: http.MethodPost, body: "1", expectedCode: http.StatusBadRequest, expectedBody: "Invalid order number\n"},
+		{method: http.MethodPost, body: "49927398716", expectedCode: http.StatusOK, expectedBody: ""},
+	}
+
+	cookie := getAuthCookie()
+
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+
+			req := resty.New().R()
+			req.Method = tc.method
+			req.SetCookie(cookie)
+			req.URL = "http://localhost:8080/api/user/orders"
+			req.SetBody([]byte(tc.body))
+
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			assert.Equal(t, tc.expectedBody, string(resp.Body()))
+
+		})
+	}
+}
+
+func getAuthCookie() *http.Cookie {
+
+	authData := []byte(`{"login" : "mylogin1", "password" : "mypassword1"}`)
+
+	// В зависимости от порядка тестов, пользователь может быть уже зарегистрирован
+	// Или же нужно создать нового
+	req := resty.New().R()
+	req.Method = http.MethodPost
+	req.URL = "http://localhost:8080/api/user/register"
+	req.SetBody(authData)
+	req.Send()
+
+	req = resty.New().R()
+	req.Method = http.MethodPost
+	req.URL = "http://localhost:8080/api/user/login"
+	req.SetBody(authData)
+
+	resp, _ := req.Send()
+	cookie := resp.Cookies()[0]
+	return cookie
+
 }

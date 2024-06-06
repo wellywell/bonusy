@@ -33,7 +33,11 @@ func (e *UserNotFoundError) Error() string {
 
 func NewDatabase(connString string) (*Database, error) {
 
-	Configure(connString)
+	err := Migrate(connString)
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to migrate %w", err)
+	}
 
 	ctx := context.Background()
 	p, err := pgxpool.New(ctx, connString)

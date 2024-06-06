@@ -8,6 +8,7 @@ import (
 
 	"github.com/wellywell/bonusy/internal/auth"
 	"github.com/wellywell/bonusy/internal/db"
+	"github.com/wellywell/bonusy/internal/validate"
 )
 
 type HandlerSet struct {
@@ -149,11 +150,36 @@ func (h *HandlerSet) HandleRegisterUser(w http.ResponseWriter, req *http.Request
 			http.StatusInternalServerError)
 	}
 
-	w.Header().Set("content-type", "text/plain")
+	w.Header().Set("Content-Type", "text/plain")
 
 	_, err = w.Write([]byte("success"))
 	if err != nil {
 		http.Error(w, "Something went wrong",
 			http.StatusInternalServerError)
 	}
+}
+
+func (h *HandlerSet) HandlePostUserOrder(w http.ResponseWriter, req *http.Request) {
+
+	_, ok := auth.GetAuthenticatedUser(req)
+	if !ok {
+		http.Error(w, "Something went wrong",
+			http.StatusInternalServerError)
+		return
+	}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(w, "Something went wrong",
+			http.StatusInternalServerError)
+		return
+	}
+
+	order := string(body)
+	if !validate.ValidateOrderNumber(order) {
+		http.Error(w, "Invalid order number",
+			http.StatusBadRequest)
+		return
+	}
+
 }
