@@ -1,5 +1,5 @@
 BEGIN;
 
-CREATE TABLE auth_user (id BIGSERIAL, username VARCHAR(255), password VARCHAR(255));
+CREATE TABLE auth_user (id BIGSERIAL PRIMARY KEY, username VARCHAR(255), password VARCHAR(255));
 
 COMMIT;

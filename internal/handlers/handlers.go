@@ -8,6 +8,7 @@ import (
 
 	"github.com/wellywell/bonusy/internal/auth"
 	"github.com/wellywell/bonusy/internal/db"
+	"github.com/wellywell/bonusy/internal/order"
 	"github.com/wellywell/bonusy/internal/validate"
 )
 
@@ -161,10 +162,17 @@ func (h *HandlerSet) HandleRegisterUser(w http.ResponseWriter, req *http.Request
 
 func (h *HandlerSet) HandlePostUserOrder(w http.ResponseWriter, req *http.Request) {
 
-	_, ok := auth.GetAuthenticatedUser(req)
+	username, ok := auth.GetAuthenticatedUser(req)
 	if !ok {
 		http.Error(w, "Something went wrong",
 			http.StatusInternalServerError)
+		return
+	}
+
+	userID, err := h.database.GetUserID(req.Context(), username)
+	if err != nil {
+		http.Error(w, "User not found",
+			http.StatusUnauthorized)
 		return
 	}
 
@@ -175,11 +183,27 @@ func (h *HandlerSet) HandlePostUserOrder(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	order := string(body)
-	if !validate.ValidateOrderNumber(order) {
+	orderNum := string(body)
+	if !validate.ValidateOrderNumber(orderNum) {
 		http.Error(w, "Invalid order number",
-			http.StatusBadRequest)
+			http.StatusUnprocessableEntity)
 		return
 	}
-
+	err = h.database.InsertUserOrder(req.Context(), orderNum, userID, order.NewStatus)
+	if err != nil {
+		var orderExistsSameUser *db.UserAlreadyUploadedOrder
+		if errors.As(err, &orderExistsSameUser) {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		var orderExistsWrongUser *db.OrderUploadedByWrongUser
+		if errors.As(err, &orderExistsWrongUser) {
+			http.Error(w, err.Error(),
+				http.StatusConflict)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
 }

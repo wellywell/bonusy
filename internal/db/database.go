@@ -15,22 +15,6 @@ type Database struct {
 	pool *pgxpool.Pool
 }
 
-type UserExistsError struct {
-	Username string
-}
-
-func (e *UserExistsError) Error() string {
-	return fmt.Sprintf("User %s exists", e.Username)
-}
-
-type UserNotFoundError struct {
-	Username string
-}
-
-func (e *UserNotFoundError) Error() string {
-	return fmt.Sprintf("User %s not found", e.Username)
-}
-
 func NewDatabase(connString string) (*Database, error) {
 
 	err := Migrate(connString)
@@ -83,4 +67,54 @@ func (d *Database) GetUserHashedPassword(ctx context.Context, username string) (
 		return "", fmt.Errorf("%w", &UserNotFoundError{Username: username})
 	}
 	return password, nil
+}
+
+func (d *Database) GetUserID(ctx context.Context, username string) (int, error) {
+	query := `
+		SELECT id 
+		FROM auth_user 
+		WHERE username = $1`
+
+	row := d.pool.QueryRow(ctx, query, username)
+
+	var id int
+
+	err := row.Scan(&id)
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("%w", &UserNotFoundError{Username: username})
+	}
+	return id, nil
+
+}
+
+func (d *Database) InsertUserOrder(ctx context.Context, order string, userID int, status string) error {
+
+	query := `
+	WITH inserted AS
+		(INSERT INTO user_order (user_id, order_number, status)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT(order_number) DO NOTHING
+		 RETURNING -1)
+	SELECT COALESCE (
+		(SELECT * FROM inserted),
+		(SELECT user_id FROM user_order WHERE order_number = $2)
+	)`
+
+	row := d.pool.QueryRow(ctx, query, userID, order, status)
+
+	var OwnerOfExistingRow int
+	if err := row.Scan(&OwnerOfExistingRow); err != nil {
+		return fmt.Errorf("%w", err)
+	}
+
+	// row was inserted sucessfully
+	if OwnerOfExistingRow == -1 {
+		return nil
+	}
+
+	if OwnerOfExistingRow == userID {
+		return fmt.Errorf("%w", &UserAlreadyUploadedOrder{userID, order})
+	} else {
+		return fmt.Errorf("%w", &OrderUploadedByWrongUser{order})
+	}
 }

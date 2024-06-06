@@ -387,28 +387,32 @@ func TestNotAuthenticated(t *testing.T) {
 
 func TestPostUser(t *testing.T) {
 
+	cookie := getAuthCookie("user1", "passw")
+	otherUserCookie := getAuthCookie("user2", "passw")
+
 	testCases := []struct {
 		method       string
 		body         string
 		expectedCode int
 		expectedBody string
+		cookie       *http.Cookie
 	}{
-		{method: http.MethodGet, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
-		{method: http.MethodPut, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
-		{method: http.MethodDelete, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: ""},
-		{method: http.MethodPost, body: "", expectedCode: http.StatusBadRequest, expectedBody: "Invalid order number\n"},
-		{method: http.MethodPost, body: "1", expectedCode: http.StatusBadRequest, expectedBody: "Invalid order number\n"},
-		{method: http.MethodPost, body: "49927398716", expectedCode: http.StatusOK, expectedBody: ""},
+		{method: http.MethodGet, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: "", cookie: cookie},
+		{method: http.MethodPut, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: "", cookie: cookie},
+		{method: http.MethodDelete, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: "", cookie: cookie},
+		{method: http.MethodPost, body: "", expectedCode: http.StatusUnprocessableEntity, expectedBody: "Invalid order number\n", cookie: cookie},
+		{method: http.MethodPost, body: "1", expectedCode: http.StatusUnprocessableEntity, expectedBody: "Invalid order number\n", cookie: cookie},
+		{method: http.MethodPost, body: "49927398716", expectedCode: http.StatusCreated, expectedBody: "", cookie: cookie},
+		{method: http.MethodPost, body: "49927398716", expectedCode: http.StatusOK, expectedBody: "", cookie: cookie},
+		{method: http.MethodPost, body: "49927398716", expectedCode: http.StatusConflict, expectedBody: "Other user already uploaded order 49927398716\n", cookie: otherUserCookie},
 	}
-
-	cookie := getAuthCookie()
 
 	for _, tc := range testCases {
 		t.Run(tc.method, func(t *testing.T) {
 
 			req := resty.New().R()
 			req.Method = tc.method
-			req.SetCookie(cookie)
+			req.SetCookie(tc.cookie)
 			req.URL = "http://localhost:8080/api/user/orders"
 			req.SetBody([]byte(tc.body))
 
@@ -422,9 +426,9 @@ func TestPostUser(t *testing.T) {
 	}
 }
 
-func getAuthCookie() *http.Cookie {
+func getAuthCookie(login string, password string) *http.Cookie {
 
-	authData := []byte(`{"login" : "mylogin1", "password" : "mypassword1"}`)
+	authData := []byte(fmt.Sprintf(`{"login" : "%s", "password" : "%s"}`, login, password))
 
 	// В зависимости от порядка тестов, пользователь может быть уже зарегистрирован
 	// Или же нужно создать нового
