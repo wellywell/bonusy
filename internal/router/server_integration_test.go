@@ -275,7 +275,7 @@ func TestPostUser(t *testing.T) {
 		{method: http.MethodDelete, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: "", cookie: cookie},
 		{method: http.MethodPost, body: "", expectedCode: http.StatusUnprocessableEntity, expectedBody: "Invalid order number\n", cookie: cookie},
 		{method: http.MethodPost, body: "1", expectedCode: http.StatusUnprocessableEntity, expectedBody: "Invalid order number\n", cookie: cookie},
-		{method: http.MethodPost, body: "49927398716", expectedCode: http.StatusCreated, expectedBody: "", cookie: cookie},
+		{method: http.MethodPost, body: "49927398716", expectedCode: http.StatusAccepted, expectedBody: "", cookie: cookie},
 		{method: http.MethodPost, body: "49927398716", expectedCode: http.StatusOK, expectedBody: "", cookie: cookie},
 		{method: http.MethodPost, body: "49927398716", expectedCode: http.StatusConflict, expectedBody: "Other user already uploaded order 49927398716\n", cookie: otherUserCookie},
 	}

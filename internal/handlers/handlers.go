@@ -205,5 +205,5 @@ func (h *HandlerSet) HandlePostUserOrder(w http.ResponseWriter, req *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusAccepted)
 }
