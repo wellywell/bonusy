@@ -71,11 +71,11 @@ func CheckAccrualOrders(ctx context.Context, tasks <-chan types.OrderRecord, cli
 				}
 				result, err := retryThrottle(task.OrderNum, client)
 				if err != nil {
-					if errors.Is(err, accrual.OrderNotExists) {
+					if errors.Is(err, accrual.ErrOrderNotExists) {
 						logger.Infof("Order %s not found", task.OrderNum)
 						continue
 					}
-					if errors.Is(err, accrual.UnknownError) {
+					if errors.Is(err, accrual.ErrUnknown) {
 						logger.Error(err)
 						continue
 					}
@@ -105,7 +105,7 @@ func retryThrottle(order string, client *accrual.AccrualClient) (*accrual.OrderS
 		result, err := client.GetOrderStatus(order)
 
 		if err != nil {
-			if !errors.Is(err, accrual.ThrottleError) {
+			if !errors.Is(err, accrual.ErrThrottle) {
 				return nil, err
 			}
 			logger.Warningf("Accrual too many requests, will retry in %d seconds", sleep)

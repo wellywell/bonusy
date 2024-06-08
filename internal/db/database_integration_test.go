@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 
 func runMain(m *testing.M) (int, error) {
 
-	databaseDSN, err, cleanUp := testutils.RunTestDatabase()
+	databaseDSN, cleanUp, err := testutils.RunTestDatabase()
 	defer cleanUp()
 
 	if err != nil {

@@ -9,7 +9,9 @@ type AuthenticateMiddleware struct {
 	Secret []byte
 }
 
-const contextKey = "username"
+type key string
+
+const contextKey key = "username"
 
 func (m AuthenticateMiddleware) Handle(next http.Handler) http.Handler {
 

@@ -21,7 +21,7 @@ func NewDatabase(connString string) (*Database, error) {
 	err := Migrate(connString)
 
 	if err != nil {
-		return nil, fmt.Errorf("Failed to migrate %w", err)
+		return nil, fmt.Errorf("failed to migrate %w", err)
 	}
 
 	ctx := context.Background()

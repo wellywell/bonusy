@@ -19,8 +19,8 @@ type HandlerSet struct {
 }
 
 var (
-	couldNotParseBody = errors.New("could not parse body")
-	authDataEmpty     = errors.New("login or password cannot be empty")
+	ErrCouldNotParseBody = errors.New("could not parse body")
+	ErrAuthDataEmpty     = errors.New("login or password cannot be empty")
 )
 
 func NewHandlerSet(secret []byte, cookieExpiresSecs int, database *db.Database) *HandlerSet {
@@ -40,11 +40,11 @@ func (h *HandlerSet) parseAuthData(body []byte) (username string, password strin
 
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		return "", "", couldNotParseBody
+		return "", "", ErrCouldNotParseBody
 	}
 
 	if data.Username == "" || data.Password == "" {
-		return "", "", authDataEmpty
+		return "", "", ErrAuthDataEmpty
 	}
 
 	return data.Username, data.Password, nil
@@ -53,10 +53,10 @@ func (h *HandlerSet) parseAuthData(body []byte) (username string, password strin
 
 func (h *HandlerSet) handleAuthErrors(err error, w http.ResponseWriter) {
 
-	if errors.Is(err, couldNotParseBody) {
+	if errors.Is(err, ErrCouldNotParseBody) {
 		http.Error(w, "Could not parse body",
 			http.StatusBadRequest)
-	} else if errors.Is(err, authDataEmpty) {
+	} else if errors.Is(err, ErrAuthDataEmpty) {
 		http.Error(w, "Login and password cannot be empty",
 			http.StatusBadRequest)
 	} else {

@@ -93,7 +93,7 @@ func getHostPort(hostPort string) (string, uint16, error) {
 	return parts[0], uint16(port), nil
 }
 
-func RunTestDatabase() (DSN string, err error, cleanUp func()) {
+func RunTestDatabase() (DSN string, cleanUp func(), err error) {
 
 	var cleanUpfuncs []func()
 

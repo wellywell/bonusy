@@ -20,9 +20,9 @@ type OrderStatus struct {
 }
 
 var (
-	ThrottleError  = errors.New("Too many requests")
-	UnknownError   = errors.New("Unknown server error")
-	OrderNotExists = errors.New("Order not exists")
+	ErrThrottle       = errors.New("too many requests")
+	ErrUnknown        = errors.New("unknown server error")
+	ErrOrderNotExists = errors.New("order not exists")
 )
 
 func NewAccrualClient(address string) *AccrualClient {
@@ -52,13 +52,13 @@ func (c *AccrualClient) GetOrderStatus(orderNum string) (*OrderStatus, error) {
 		return &status, nil
 
 	case http.StatusNoContent:
-		return nil, fmt.Errorf("%w", OrderNotExists)
+		return nil, fmt.Errorf("%w", ErrOrderNotExists)
 	case http.StatusTooManyRequests:
-		return nil, fmt.Errorf("%w", ThrottleError)
+		return nil, fmt.Errorf("%w", ErrThrottle)
 	case http.StatusInternalServerError:
-		return nil, fmt.Errorf("%w", UnknownError)
+		return nil, fmt.Errorf("%w", ErrUnknown)
 	default:
-		return nil, fmt.Errorf("Unexpected status %d", response.StatusCode)
+		return nil, fmt.Errorf("unexpected status %d", response.StatusCode)
 	}
 
 }
