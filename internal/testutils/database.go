@@ -107,7 +107,7 @@ func RunTestDatabase() (DSN string, cleanUp func(), err error) {
 	pool, err := dockertest.NewPool("")
 
 	if err != nil {
-		return "", err, clear
+		return "", clear, err
 	}
 
 	logger.Info("Creating DB container")
@@ -130,7 +130,7 @@ func RunTestDatabase() (DSN string, cleanUp func(), err error) {
 		},
 	)
 	if err != nil {
-		return "", err, clear
+		return "", clear, err
 	}
 	cleanUpfuncs = append(cleanUpfuncs, func() {
 		logger.Info("Closing docker pool")
@@ -157,7 +157,7 @@ func RunTestDatabase() (DSN string, cleanUp func(), err error) {
 		}
 		return nil
 	}); err != nil {
-		return "", err, clear
+		return "", clear, err
 	}
 
 	cleanUpfuncs = append(cleanUpfuncs, func() {
@@ -168,12 +168,12 @@ func RunTestDatabase() (DSN string, cleanUp func(), err error) {
 	})
 
 	if err := createTestDB(conn); err != nil {
-		return "", err, clear
+		return "", clear, err
 	}
 
 	dsn := getDSN()
 	logger.Info("Test DSN: ", dsn)
 
-	return dsn, nil, clear
+	return dsn, clear, nil
 
 }
