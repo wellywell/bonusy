@@ -8,7 +8,7 @@ import (
 
 	"github.com/wellywell/bonusy/internal/auth"
 	"github.com/wellywell/bonusy/internal/db"
-	"github.com/wellywell/bonusy/internal/order"
+	"github.com/wellywell/bonusy/internal/types"
 	"github.com/wellywell/bonusy/internal/validate"
 )
 
@@ -189,7 +189,7 @@ func (h *HandlerSet) HandlePostUserOrder(w http.ResponseWriter, req *http.Reques
 			http.StatusUnprocessableEntity)
 		return
 	}
-	err = h.database.InsertUserOrder(req.Context(), orderNum, userID, order.NewStatus)
+	err = h.database.InsertUserOrder(req.Context(), orderNum, userID, types.NewStatus)
 	if err != nil {
 		var orderExistsSameUser *db.UserAlreadyUploadedOrder
 		if errors.As(err, &orderExistsSameUser) {

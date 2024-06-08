@@ -11,21 +11,19 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/jackc/pgx/v5"
-	"github.com/ory/dockertest"
-	"github.com/ory/dockertest/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/wellywell/bonusy/internal/auth"
 	"github.com/wellywell/bonusy/internal/config"
 	"github.com/wellywell/bonusy/internal/db"
 	"github.com/wellywell/bonusy/internal/handlers"
+	"github.com/wellywell/bonusy/internal/testutils"
 )
+
+var DBDSN string
 
 func TestMain(m *testing.M) {
 	code, err := runMain(m)
@@ -36,115 +34,27 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-const (
-	testDBName       = "test"
-	testUserName     = "test"
-	testUserPassword = "test"
-)
-
-var (
-	getDSN          func() string
-	getSUConnection func() (*pgx.Conn, error)
-)
-
-func initGetDSN(hostAndPort string) {
-	getDSN = func() string {
-		return fmt.Sprintf(
-			"postgres://%s:%s@%s/%s?sslmode=disable",
-			testUserName,
-			testUserPassword,
-			hostAndPort,
-			testDBName,
-		)
-	}
-}
-
-func initGetSUConnection(hostPort string) error {
-	host, port, err := getHostPort(hostPort)
-	if err != nil {
-		return err
-	}
-	getSUConnection = func() (*pgx.Conn, error) {
-		conn, err := pgx.Connect(context.Background(), fmt.Sprintf("postgres://postgres:postgres@%s:%d/postgres?sslmode=disable", host, port))
-		if err != nil {
-			return nil, err
-		}
-		return conn, nil
-	}
-	return nil
-}
-
 func runMain(m *testing.M) (int, error) {
-	pool, err := dockertest.NewPool("")
+
+	databaseDSN, err, cleanUp := testutils.RunTestDatabase()
+	defer cleanUp()
 
 	if err != nil {
 		return 1, err
 	}
 
-	pg, err := pool.RunWithOptions(
-		&dockertest.RunOptions{
-			Repository: "postgres",
-			Tag:        "15.3",
-			Name:       "test-bonusy-server",
-			Env: []string{
-				"POSTGRES_USER=postgres",
-				"POSTGRES_PASSWORD=postgres",
-			},
-			ExposedPorts: []string{"5432"},
-		},
-		func(config *docker.HostConfig) {
-			config.AutoRemove = true
-			config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+	DBDSN = databaseDSN
 
-		},
-	)
+	database, err := db.NewDatabase(DBDSN)
 	if err != nil {
 		return 1, err
-	}
-
-	defer func() {
-		if err := pool.Purge(pg); err != nil {
-			log.Printf("Failed to purge docker")
-		}
-	}()
-
-	hostPort := pg.GetHostPort("5432/tcp")
-	initGetDSN(hostPort)
-	if err := initGetSUConnection(hostPort); err != nil {
-		return 1, err
-	}
-
-	pool.MaxWait = 10 * time.Second
-	var conn *pgx.Conn
-	if err := pool.Retry(func() error {
-		conn, err = getSUConnection()
-		if err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return 1, err
-	}
-
-	defer func() {
-		if err := conn.Close(context.Background()); err != nil {
-			log.Printf("Error closing connection")
-		}
-	}()
-
-	if err := createTestDB(conn); err != nil {
-		return 1, err
-	}
-
-	database, err := db.NewDatabase(getDSN())
-	if err != nil {
-		panic(err)
 	}
 	handlerSet := handlers.NewHandlerSet([]byte("secret"), 1, database)
 
 	config := config.ServerConfig{
-		Secret:     []byte("secret"),
-		RunAddress: "localhost:8080",
+		Secret:      []byte("secret"),
+		RunAddress:  "localhost:8080",
+		DatabaseDSN: DBDSN,
 	}
 
 	r := NewRouter(&config, handlerSet)
@@ -155,43 +65,6 @@ func runMain(m *testing.M) (int, error) {
 
 	return exitCode, nil
 
-}
-
-func createTestDB(conn *pgx.Conn) error {
-	_, err := conn.Exec(context.Background(),
-		fmt.Sprintf(
-			`CREATE USER %s PASSWORD '%s'`,
-			testUserName,
-			testUserPassword,
-		),
-	)
-	if err != nil {
-		return err
-	}
-	_, err = conn.Exec(
-		context.Background(),
-		fmt.Sprintf(`
-		CREATE DATABASE %s
-		OWNER '%s'
-		ENCODING 'UTF8'`, testDBName, testUserName,
-		),
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func getHostPort(hostPort string) (string, uint16, error) {
-	parts := strings.Split(hostPort, ":")
-
-	port, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return "", 0, err
-	}
-
-	return parts[0], uint16(port), nil
 }
 
 func TestRegisterUser(t *testing.T) {
@@ -234,7 +107,7 @@ func TestRegisterUser(t *testing.T) {
 			if tc.expectedCode == http.StatusOK {
 
 				// check user in DB
-				conn, err := pgx.Connect(context.Background(), getDSN())
+				conn, err := pgx.Connect(context.Background(), DBDSN)
 				if err != nil {
 					panic(err)
 				}

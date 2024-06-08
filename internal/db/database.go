@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/wellywell/bonusy/internal/types"
 )
 
 type Database struct {
@@ -87,7 +88,7 @@ func (d *Database) GetUserID(ctx context.Context, username string) (int, error) 
 
 }
 
-func (d *Database) InsertUserOrder(ctx context.Context, order string, userID int, status string) error {
+func (d *Database) InsertUserOrder(ctx context.Context, order string, userID int, status types.Status) error {
 
 	query := `
 	WITH inserted AS
@@ -117,4 +118,36 @@ func (d *Database) InsertUserOrder(ctx context.Context, order string, userID int
 	} else {
 		return fmt.Errorf("%w", &OrderUploadedByWrongUser{order})
 	}
+}
+
+func (d *Database) GetUnprocessedOrders(ctx context.Context, startID int, limit int) ([]types.OrderRecord, error) {
+	query := `
+	    SELECT id, order_number, status
+		FROM user_order
+		WHERE status not in ('INVALID', 'PROCESSED')
+		AND id > $1
+		ORDER BY id LIMIT $2
+	`
+	rows, err := d.pool.Query(ctx, query, startID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed collecting rows %w", err)
+	}
+
+	orders, err := pgx.CollectRows(rows, pgx.RowToStructByName[types.OrderRecord])
+	if err != nil {
+		return nil, fmt.Errorf("failed unpacking rows %w", err)
+	}
+	return orders, nil
+}
+
+func (d *Database) UpdateOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error {
+	query := `
+		UPDATE user_order
+		SET status = $1, accrual = $2
+		WHERE id = $3`
+	_, err := d.pool.Exec(ctx, query, newStatus, accrual, orderID)
+	if err != nil {
+		return fmt.Errorf("Error updating order %w", err)
+	}
+	return nil
 }

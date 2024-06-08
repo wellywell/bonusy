@@ -26,7 +26,7 @@ type UserAlreadyUploadedOrder struct {
 }
 
 func (e *UserAlreadyUploadedOrder) Error() string {
-	return fmt.Sprintf("User %s already uploaded order %s", e.UserID, e.Order)
+	return fmt.Sprintf("User %d already uploaded order %s", e.UserID, e.Order)
 }
 
 type OrderUploadedByWrongUser struct {

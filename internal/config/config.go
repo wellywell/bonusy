@@ -32,7 +32,7 @@ func NewConfig() (*ServerConfig, error) {
 	var commandLineParams ServerConfig
 
 	flag.StringVar(&commandLineParams.RunAddress, "a", "localhost:8080", "Base address to listen on")
-	flag.StringVar(&commandLineParams.AccrualSystemAddress, "r", "http://localhost:8080", "Accural system address")
+	flag.StringVar(&commandLineParams.AccrualSystemAddress, "r", "http://localhost:3333", "Accrual system address")
 	flag.StringVar(&commandLineParams.DatabaseDSN, "d", "postgres://postgres@localhost:5432/bonusy?sslmode=disable", "Database DSN")
 	flag.Parse()
 
