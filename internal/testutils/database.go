@@ -144,7 +144,7 @@ func RunTestDatabase() (DSN string, cleanUp func(), err error) {
 
 	initGetDSN(hostPort)
 	if err := initGetSUConnection(hostPort); err != nil {
-		return "", err, clear
+		return "", clear, err
 	}
 
 	pool.MaxWait = 10 * time.Second
