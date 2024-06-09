@@ -1,44 +1,64 @@
 package order
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/wellywell/bonusy/internal/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wellywell/bonusy/internal/accrual"
 	"github.com/wellywell/bonusy/internal/order/mocks"
 )
 
-/***func TestCheckAccrualOrders(t *testing.T) {
+func TestCheckAccrualOrders(t *testing.T) {
 
 	c := mocks.NewAccrualClient(t)
 
-	type args struct {
-		ctx   context.Context
-		tasks <-chan types.OrderRecord
-	}
 	tests := []struct {
-		name string
-		args args
-		want chan OrderUpdate
+		name           string
+		result         *accrual.OrderStatus
+		wantError      error
+		expectedResult *OrderUpdate
 	}{
-		{}
+		{"no change", &accrual.OrderStatus{Order: "123", Status: "NEW"}, nil, nil},
+		{"changed", &accrual.OrderStatus{Order: "123", Status: "INVALID"},
+			nil, &OrderUpdate{
+				order:  types.OrderRecord{OrderNum: "123", Status: "NEW", OrderID: 1},
+				status: accrual.OrderStatus{Order: "123", Status: "INVALID", Accrual: 0}},
+		},
+		{"processed", &accrual.OrderStatus{Order: "123", Status: "PROCESSED", Accrual: 500},
+			nil, &OrderUpdate{
+				order:  types.OrderRecord{OrderNum: "123", Status: "NEW", OrderID: 1},
+				status: accrual.OrderStatus{Order: "123", Status: "PROCESSED", Accrual: 500}},
+		},
+		{"error", nil, fmt.Errorf("Some error"), nil},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			timeOutCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			defer cancel()
 
-			c.EXPECT().Get("some path").Return("result", nil)
+			c.EXPECT().GetOrderStatus("123").Return(tt.result, tt.wantError).Once()
 
-			if got := CheckAccrualOrders(tt.args.ctx, tt.args.tasks, c); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("CheckAccrualOrders() = %v, want %v", got, tt.want)
+			inp := make(chan types.OrderRecord)
+			out := CheckAccrualOrders(timeOutCtx, inp, c)
+
+			inp <- types.OrderRecord{OrderNum: "123", Status: "NEW", OrderID: 1}
+
+			val := <-out
+			if tt.expectedResult != nil {
+				assert.Equal(t, *tt.expectedResult, val)
 			}
+
 		})
 	}
 }
-***/
 
 func Test_retryThrottle(t *testing.T) {
 

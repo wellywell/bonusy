@@ -68,6 +68,7 @@ func CheckAccrualOrders(ctx context.Context, tasks <-chan types.OrderRecord, cli
 		for {
 			select {
 			case <-ctx.Done():
+				logger.Info("Context cancel, stopping processor")
 				return
 			case task, ok := <-tasks:
 				if !ok {
@@ -80,7 +81,7 @@ func CheckAccrualOrders(ctx context.Context, tasks <-chan types.OrderRecord, cli
 						continue
 					}
 					if errors.Is(err, accrual.ErrUnknown) {
-						logger.Error(err)
+						logger.Errorf("Unknwon accrual error %s", err.Error())
 						continue
 					}
 					logger.Error(err)
