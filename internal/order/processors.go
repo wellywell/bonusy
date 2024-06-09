@@ -17,6 +17,10 @@ type OrderUpdate struct {
 	status accrual.OrderStatus
 }
 
+type AccrualClient interface {
+	GetOrderStatus(orderNum string) (*accrual.OrderStatus, error)
+}
+
 func GenerateStatusTasks(ctx context.Context, database *db.Database) chan types.OrderRecord {
 
 	tasks := make(chan types.OrderRecord)
@@ -55,7 +59,7 @@ func GenerateStatusTasks(ctx context.Context, database *db.Database) chan types.
 	return tasks
 }
 
-func CheckAccrualOrders(ctx context.Context, tasks <-chan types.OrderRecord, client *accrual.AccrualClient) chan OrderUpdate {
+func CheckAccrualOrders(ctx context.Context, tasks <-chan types.OrderRecord, client AccrualClient) chan OrderUpdate {
 
 	updates := make(chan OrderUpdate)
 
@@ -98,7 +102,7 @@ func CheckAccrualOrders(ctx context.Context, tasks <-chan types.OrderRecord, cli
 	return updates
 }
 
-func retryThrottle(order string, client *accrual.AccrualClient) (*accrual.OrderStatus, error) {
+func retryThrottle(order string, client AccrualClient) (*accrual.OrderStatus, error) {
 
 	for {
 		result, err := client.GetOrderStatus(order)
