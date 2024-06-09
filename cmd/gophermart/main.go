@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+
 	logger "github.com/sirupsen/logrus"
 	"github.com/wellywell/bonusy/internal/accrual"
 	"github.com/wellywell/bonusy/internal/config"

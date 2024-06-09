@@ -79,6 +79,8 @@ func CheckAccrualOrders(ctx context.Context, tasks <-chan types.OrderRecord, cli
 						logger.Error(err)
 						continue
 					}
+					logger.Error(err)
+					continue
 				}
 				if result.Status == task.Status {
 					continue
@@ -96,21 +98,20 @@ func CheckAccrualOrders(ctx context.Context, tasks <-chan types.OrderRecord, cli
 	return updates
 }
 
-// Можно какой-то более изысканный способ троттлинга реализовать, но пока так
 func retryThrottle(order string, client *accrual.AccrualClient) (*accrual.OrderStatus, error) {
-
-	sleep := 1
 
 	for {
 		result, err := client.GetOrderStatus(order)
 
 		if err != nil {
-			if !errors.Is(err, accrual.ErrThrottle) {
+			var errThrottle *accrual.ErrThrottle
+			if !errors.As(err, &errThrottle) {
 				return nil, err
 			}
+			sleep := errThrottle.RetryAfter
 			logger.Warningf("Accrual too many requests, will retry in %d seconds", sleep)
 			time.Sleep(time.Duration(sleep) * time.Second)
-			sleep += 1
+
 		} else {
 			return result, err
 		}

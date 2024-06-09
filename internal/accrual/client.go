@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/wellywell/bonusy/internal/types"
 	"io"
 	"net/http"
+	"strconv"
+
+	"github.com/wellywell/bonusy/internal/types"
 )
 
 type AccrualClient struct {
@@ -19,8 +21,15 @@ type OrderStatus struct {
 	Accrual int          `json:"accrual"`
 }
 
+type ErrThrottle struct {
+	RetryAfter int
+}
+
+func (e *ErrThrottle) Error() string {
+	return "Too many requests"
+}
+
 var (
-	ErrThrottle       = errors.New("too many requests")
 	ErrUnknown        = errors.New("unknown server error")
 	ErrOrderNotExists = errors.New("order not exists")
 )
@@ -54,7 +63,12 @@ func (c *AccrualClient) GetOrderStatus(orderNum string) (*OrderStatus, error) {
 	case http.StatusNoContent:
 		return nil, fmt.Errorf("%w", ErrOrderNotExists)
 	case http.StatusTooManyRequests:
-		return nil, fmt.Errorf("%w", ErrThrottle)
+		sleepStr := response.Header.Get("Retry-After")
+		sleep, err := strconv.Atoi(sleepStr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("%w", &ErrThrottle{RetryAfter: sleep})
 	case http.StatusInternalServerError:
 		return nil, fmt.Errorf("%w", ErrUnknown)
 	default:
