@@ -8,7 +8,6 @@ import (
 
 	logger "github.com/sirupsen/logrus"
 	"github.com/wellywell/bonusy/internal/accrual"
-	"github.com/wellywell/bonusy/internal/db"
 	"github.com/wellywell/bonusy/internal/types"
 )
 
@@ -21,7 +20,12 @@ type AccrualClient interface {
 	GetOrderStatus(orderNum string) (*accrual.OrderStatus, error)
 }
 
-func GenerateStatusTasks(ctx context.Context, database *db.Database) chan types.OrderRecord {
+type Database interface {
+	GetUnprocessedOrders(ctx context.Context, startID int, limit int) ([]types.OrderRecord, error)
+	UpdateOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error
+}
+
+func GenerateStatusTasks(ctx context.Context, database Database) chan types.OrderRecord {
 
 	tasks := make(chan types.OrderRecord)
 
@@ -39,6 +43,7 @@ func GenerateStatusTasks(ctx context.Context, database *db.Database) chan types.
 			}
 			records, err := database.GetUnprocessedOrders(ctx, startID, limit)
 			if err != nil {
+				logger.Error("Database returned error, stopping")
 				log.Fatal(err)
 			}
 			if len(records) == 0 {
@@ -123,7 +128,7 @@ func retryThrottle(order string, client AccrualClient) (*accrual.OrderStatus, er
 	}
 }
 
-func UpdateStatuses(ctx context.Context, tasks <-chan OrderUpdate, database *db.Database) {
+func UpdateStatuses(ctx context.Context, tasks <-chan OrderUpdate, database Database) {
 	go func(ctx context.Context) {
 		for {
 			select {

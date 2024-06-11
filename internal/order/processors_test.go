@@ -7,11 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wellywell/bonusy/internal/types"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/wellywell/bonusy/internal/accrual"
 	"github.com/wellywell/bonusy/internal/order/mocks"
+	"github.com/wellywell/bonusy/internal/types"
 )
 
 func TestCheckAccrualOrders(t *testing.T) {
@@ -102,4 +101,49 @@ func Test_retryThrottle(t *testing.T) {
 
 		})
 	}
+}
+
+func TestGenerateStatusTasks(t *testing.T) {
+
+	d := mocks.NewDatabase(t)
+
+	t.Run("test get unprocessed", func(t *testing.T) {
+		ctx := context.Background()
+		timeOutCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+
+		d.EXPECT().GetUnprocessedOrders(timeOutCtx, 0, 100).Return(
+			[]types.OrderRecord{types.OrderRecord{"1", "NEW", 1}, types.OrderRecord{"2", "NEW", 2}}, nil).Once()
+		d.EXPECT().GetUnprocessedOrders(timeOutCtx, 2, 100).Return(
+			[]types.OrderRecord{}, nil).Once()
+		ch := GenerateStatusTasks(timeOutCtx, d)
+
+		res := <-ch
+		assert.Equal(t, types.OrderRecord{"1", "NEW", 1}, res)
+		res = <-ch
+		assert.Equal(t, types.OrderRecord{"2", "NEW", 2}, res)
+		<-timeOutCtx.Done()
+	})
+}
+
+func TestUpdateStatuses(t *testing.T) {
+
+	inp := make(chan OrderUpdate)
+
+	d := mocks.NewDatabase(t)
+
+	ctx := context.Background()
+	timeOutCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	t.Run("update statuses", func(t *testing.T) {
+
+		d.EXPECT().UpdateOrder(timeOutCtx, 1, types.ProcessedStatus, 10).Return(nil).Once()
+		UpdateStatuses(timeOutCtx, inp, d)
+		inp <- OrderUpdate{
+			order:  types.OrderRecord{OrderNum: "123", Status: "NEW", OrderID: 1},
+			status: accrual.OrderStatus{Order: "123", Status: "PROCESSED", Accrual: 10}}
+
+		<-timeOutCtx.Done()
+	})
 }
