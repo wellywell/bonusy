@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/jackc/pgx/v5"
@@ -68,6 +69,8 @@ func runMain(m *testing.M) (int, error) {
 }
 
 func TestRegisterUser(t *testing.T) {
+
+	cleanUp(t)
 
 	goodBody := `{"login" : "mylogin", "password" : "mypassword"}`
 	emptyData1 := `{"login" : "", "password" : "mypassword"}`
@@ -138,6 +141,8 @@ func TestRegisterUser(t *testing.T) {
 
 func TestLoginUserNotExists(t *testing.T) {
 
+	cleanUp(t)
+
 	goodBody := `{"login" : "mylogin1", "password" : "mypassword1"}`
 	emptyData1 := `{"login" : "", "password" : "mypassword1"}`
 	emptyData2 := `{"login" : "a", "password" : ""}`
@@ -176,6 +181,8 @@ func TestLoginUserNotExists(t *testing.T) {
 }
 
 func TestRegisterAndLogin(t *testing.T) {
+
+	cleanUp(t)
 
 	goodBody := `{"login" : "mylogin1", "password" : "mypassword1"}`
 	emptyData1 := `{"login" : "", "password" : "mypassword1"}`
@@ -235,12 +242,14 @@ func TestRegisterAndLogin(t *testing.T) {
 }
 
 func TestNotAuthenticated(t *testing.T) {
+	cleanUp(t)
 	testCases := []struct {
 		method string
 		body   string
 		path   string
 	}{
 		{method: http.MethodPost, path: "http://localhost:8080/api/user/orders"},
+		{method: http.MethodGet, path: "http://localhost:8080/api/user/orders"},
 	}
 
 	for _, tc := range testCases {
@@ -260,8 +269,10 @@ func TestNotAuthenticated(t *testing.T) {
 
 func TestPostUser(t *testing.T) {
 
-	cookie := getAuthCookie("user1", "passw")
-	otherUserCookie := getAuthCookie("user2", "passw")
+	cleanUp(t)
+
+	cookie := getAuthCookie(t, "user1", "passw")
+	otherUserCookie := getAuthCookie(t, "user2", "passw")
 
 	testCases := []struct {
 		method       string
@@ -270,7 +281,6 @@ func TestPostUser(t *testing.T) {
 		expectedBody string
 		cookie       *http.Cookie
 	}{
-		{method: http.MethodGet, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: "", cookie: cookie},
 		{method: http.MethodPut, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: "", cookie: cookie},
 		{method: http.MethodDelete, body: "", expectedCode: http.StatusMethodNotAllowed, expectedBody: "", cookie: cookie},
 		{method: http.MethodPost, body: "", expectedCode: http.StatusUnprocessableEntity, expectedBody: "Invalid order number\n", cookie: cookie},
@@ -299,7 +309,90 @@ func TestPostUser(t *testing.T) {
 	}
 }
 
-func getAuthCookie(login string, password string) *http.Cookie {
+
+func TestGetUserOrders(t *testing.T) {
+
+	cleanUp(t)
+
+	cookie := getAuthCookie(t, "user1", "passw")
+	otherUserCookie := getAuthCookie(t, "user2", "passw")
+
+	ti := "2024-06-12T15:13:29.681099+03:00"
+
+	uploadedAt, err := time.Parse(time.RFC3339, ti)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	testCases := []struct {
+		createOrders []string
+		expectedCode int
+		expectedBody string
+		cookie       *http.Cookie
+	}{
+
+		{createOrders: []string{}, expectedCode: http.StatusNoContent, expectedBody: "", cookie: cookie},
+		{createOrders: []string{"79927398713"}, expectedCode: http.StatusNoContent, expectedBody: "", cookie: otherUserCookie},
+		{createOrders: []string{"49927398716"}, expectedCode: http.StatusOK, expectedBody: fmt.Sprintf("[{\"number\":\"49927398716\",\"status\":\"NEW\",\"accrual\":null,\"uploaded_at\": \"%s\"}]", ti), cookie: cookie},
+		{createOrders: []string{"49927398716", "0"}, expectedCode: http.StatusOK, expectedBody: fmt.Sprintf("[{\"number\":\"49927398716\",\"status\":\"NEW\",\"accrual\":null,\"uploaded_at\": \"%s\"}, {\"number\":\"0\",\"status\":\"NEW\",\"accrual\":null,\"uploaded_at\": \"%s\"}]", ti, ti), cookie: cookie},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.expectedBody, func(t *testing.T) {
+
+			// create orders
+			for _, num := range tc.createOrders {
+				req := resty.New().R()
+				req.Method = http.MethodPost
+				req.SetCookie(tc.cookie)
+				req.URL = "http://localhost:8080/api/user/orders"
+				req.SetBody([]byte(num))
+				req.Send()
+			}
+			setTestDateTime(uploadedAt)
+
+			req := resty.New().R()
+			req.Method = http.MethodGet
+			req.SetCookie(cookie)
+			req.URL = "http://localhost:8080/api/user/orders"
+			resp, err := req.Send()
+			assert.NoError(t, err)
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			if tc.expectedCode == http.StatusOK {
+				assert.JSONEq(t, tc.expectedBody, string(resp.Body()))
+			} else {
+				assert.Equal(t, tc.expectedBody, string(resp.Body()))
+			}
+
+		})
+	}
+}
+
+func cleanUp(t *testing.T) {
+	t.Cleanup(func() {
+		conn, err := pgx.Connect(context.Background(), DBDSN)
+		if err != nil {
+			panic(err)
+		}
+		conn.Exec(context.Background(), "TRUNCATE TABLE auth_user")
+		conn.Exec(context.Background(), "TRUNCATE TABLE user_order")
+	})
+
+}
+
+func setTestDateTime(d time.Time) {
+	conn, err := pgx.Connect(context.Background(), DBDSN)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = conn.Exec(context.Background(), "UPDATE user_order SET uploaded_at = $1", d)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func getAuthCookie(t *testing.T, login string, password string) *http.Cookie {
 
 	authData := []byte(fmt.Sprintf(`{"login" : "%s", "password" : "%s"}`, login, password))
 

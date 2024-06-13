@@ -5,6 +5,7 @@ import (
 
 	logger "github.com/sirupsen/logrus"
 	"github.com/wellywell/bonusy/internal/accrual"
+	"github.com/wellywell/bonusy/internal/compress"
 	"github.com/wellywell/bonusy/internal/config"
 	"github.com/wellywell/bonusy/internal/db"
 	"github.com/wellywell/bonusy/internal/handlers"
@@ -34,7 +35,7 @@ func main() {
 
 	handlerSet := handlers.NewHandlerSet(conf.Secret, conf.AuthCookieExpiresIn, database)
 
-	r := router.NewRouter(conf, handlerSet)
+	r := router.NewRouter(conf, handlerSet, compress.RequestUngzipper{})
 
 	err = r.ListenAndServe()
 	if err != nil {

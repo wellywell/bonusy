@@ -151,3 +151,24 @@ func (d *Database) UpdateOrder(ctx context.Context, orderID int, newStatus types
 	}
 	return nil
 }
+
+func (d *Database) GetUserOrders(ctx context.Context, userID int) ([]types.OrderInfo, error) {
+
+	query := `
+		SELECT order_number, status, accrual, uploaded_at
+		FROM user_order
+		WHERE user_id = $1
+		ORDER BY id
+		LIMIT 1000
+	`
+	rows, err := d.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed collecting rows %w", err)
+	}
+
+	orders, err := pgx.CollectRows(rows, pgx.RowToStructByName[types.OrderInfo])
+	if err != nil {
+		return nil, fmt.Errorf("failed unpacking rows %w", err)
+	}
+	return orders, nil
+}

@@ -25,7 +25,7 @@ type Router struct {
 	router  *chi.Mux
 }
 
-func NewRouter(conf *config.ServerConfig, handl *handlers.HandlerSet, middlewares ...Middleware) *Router {
+func NewRouter(conf *config.ServerConfig, h *handlers.HandlerSet, middlewares ...Middleware) *Router {
 
 	r := chi.NewRouter()
 
@@ -35,15 +35,16 @@ func NewRouter(conf *config.ServerConfig, handl *handlers.HandlerSet, middleware
 	//r.Use(middleware.Logger)
 	r.Use(middleware.Compress(compressLevel)) // TODO test
 
-	r.Post("/api/user/register", handl.HandleRegisterUser)
-	r.Post("/api/user/login", handl.HandleLogin)
+	r.Post("/api/user/register", h.HandleRegisterUser)
+	r.Post("/api/user/login", h.HandleLogin)
 
 	authMiddleware := &auth.AuthenticateMiddleware{Secret: conf.Secret}
 
 	r.Group(func(r chi.Router) {
 
 		r.Use(authMiddleware.Handle)
-		r.Post("/api/user/orders", handl.HandlePostUserOrder)
+		r.Post("/api/user/orders", h.HandlePostUserOrder)
+		r.Get("/api/user/orders", h.HandleGetUserOrders)
 	})
 
 	return &Router{router: r, address: conf.RunAddress}

@@ -3,9 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
+	logger "github.com/sirupsen/logrus"
 	"github.com/wellywell/bonusy/internal/auth"
 	"github.com/wellywell/bonusy/internal/db"
 	"github.com/wellywell/bonusy/internal/types"
@@ -162,17 +164,8 @@ func (h *HandlerSet) HandleRegisterUser(w http.ResponseWriter, req *http.Request
 
 func (h *HandlerSet) HandlePostUserOrder(w http.ResponseWriter, req *http.Request) {
 
-	username, ok := auth.GetAuthenticatedUser(req)
-	if !ok {
-		http.Error(w, "Something went wrong",
-			http.StatusInternalServerError)
-		return
-	}
-
-	userID, err := h.database.GetUserID(req.Context(), username)
+	userID, err := h.handleAuthorizeUser(w, req)
 	if err != nil {
-		http.Error(w, "User not found",
-			http.StatusUnauthorized)
 		return
 	}
 
@@ -206,4 +199,55 @@ func (h *HandlerSet) HandlePostUserOrder(w http.ResponseWriter, req *http.Reques
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *HandlerSet) handleAuthorizeUser(w http.ResponseWriter, req *http.Request) (int, error) {
+	username, ok := auth.GetAuthenticatedUser(req)
+	if !ok {
+		http.Error(w, "Something went wrong",
+			http.StatusInternalServerError)
+		return 0, fmt.Errorf("Authentication error")
+	}
+
+	userID, err := h.database.GetUserID(req.Context(), username)
+	if err != nil {
+		http.Error(w, "User not found",
+			http.StatusUnauthorized)
+		return 0, err
+	}
+	return userID, nil
+
+}
+
+func (h *HandlerSet) HandleGetUserOrders(w http.ResponseWriter, req *http.Request) {
+
+	userID, err := h.handleAuthorizeUser(w, req)
+	if err != nil {
+		return
+	}
+
+	orders, err := h.database.GetUserOrders(req.Context(), userID)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "Error getting data", http.StatusInternalServerError)
+		return
+	}
+
+	if len(orders) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	response, err := json.Marshal(orders)
+	if err != nil {
+		http.Error(w, "Could not serialize result",
+			http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("content-type", "application/json")
+	_, err = w.Write(response)
+	if err != nil {
+		http.Error(w, "Something went wrong",
+			http.StatusInternalServerError)
+	}
 }
