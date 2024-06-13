@@ -250,6 +250,7 @@ func TestNotAuthenticated(t *testing.T) {
 	}{
 		{method: http.MethodPost, path: "http://localhost:8080/api/user/orders"},
 		{method: http.MethodGet, path: "http://localhost:8080/api/user/orders"},
+		{method: http.MethodGet, path: "http://localhost:8080/api/user/balance"},
 	}
 
 	for _, tc := range testCases {
@@ -309,7 +310,6 @@ func TestPostUser(t *testing.T) {
 	}
 }
 
-
 func TestGetUserOrders(t *testing.T) {
 
 	cleanUp(t)
@@ -365,6 +365,36 @@ func TestGetUserOrders(t *testing.T) {
 				assert.Equal(t, tc.expectedBody, string(resp.Body()))
 			}
 
+		})
+	}
+}
+
+func TestGetUserBalance(t *testing.T) {
+
+	cleanUp(t)
+
+	cookie := getAuthCookie(t, "user1", "passw")
+
+	testCases := []struct {
+		cookie         *http.Cookie
+		expectedResult string
+	}{
+
+		{cookie: cookie, expectedResult: `{"current": 0, "withdrawn": 0}`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.expectedResult, func(t *testing.T) {
+
+			req := resty.New().R()
+			req.Method = http.MethodGet
+			req.SetCookie(cookie)
+			req.URL = "http://localhost:8080/api/user/balance"
+			resp, err := req.Send()
+			assert.NoError(t, err)
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode(), "Response code didn't match expected")
+			assert.JSONEq(t, tc.expectedResult, string(resp.Body()))
 		})
 	}
 }

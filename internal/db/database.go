@@ -172,3 +172,25 @@ func (d *Database) GetUserOrders(ctx context.Context, userID int) ([]types.Order
 	}
 	return orders, nil
 }
+
+func (d *Database) GetUserBalance(ctx context.Context, userID int) (*types.Balance, error) {
+
+	query := `
+		SELECT current, withdrawn
+		FROM balance
+		WHERE user_id = $1
+	`
+	rows, err := d.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed collecting rows %w", err)
+	}
+
+	balance, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[types.Balance])
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &types.Balance{}, nil
+		}
+		return nil, fmt.Errorf("failed unpacking rows %w", err)
+	}
+	return &balance, nil
+}

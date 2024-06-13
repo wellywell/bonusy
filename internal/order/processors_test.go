@@ -113,15 +113,15 @@ func TestGenerateStatusTasks(t *testing.T) {
 		defer cancel()
 
 		d.EXPECT().GetUnprocessedOrders(timeOutCtx, 0, 100).Return(
-			[]types.OrderRecord{types.OrderRecord{"1", "NEW", 1}, types.OrderRecord{"2", "NEW", 2}}, nil).Once()
+			[]types.OrderRecord{{OrderNum: "1", Status: "NEW", OrderID: 1}, {OrderNum: "2", Status: "NEW", OrderID: 2}}, nil).Once()
 		d.EXPECT().GetUnprocessedOrders(timeOutCtx, 2, 100).Return(
 			[]types.OrderRecord{}, nil).Once()
 		ch := GenerateStatusTasks(timeOutCtx, d)
 
 		res := <-ch
-		assert.Equal(t, types.OrderRecord{"1", "NEW", 1}, res)
+		assert.Equal(t, types.OrderRecord{OrderNum: "1", Status: "NEW", OrderID: 1}, res)
 		res = <-ch
-		assert.Equal(t, types.OrderRecord{"2", "NEW", 2}, res)
+		assert.Equal(t, types.OrderRecord{OrderNum: "2", Status: "NEW", OrderID: 2}, res)
 		<-timeOutCtx.Done()
 	})
 }

@@ -24,3 +24,8 @@ type OrderInfo struct {
 	Accrual    *int      `db:"accrual" json:"accrual"`
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
 }
+
+type Balance struct {
+	Current   float64 `db:"current" json:"current"`
+	Withdrawn float64 `db:"withdrawn" json:"withdrawn"`
+}

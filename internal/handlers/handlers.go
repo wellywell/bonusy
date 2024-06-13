@@ -251,3 +251,31 @@ func (h *HandlerSet) HandleGetUserOrders(w http.ResponseWriter, req *http.Reques
 			http.StatusInternalServerError)
 	}
 }
+
+func (h *HandlerSet) HandleGetUserBalance(w http.ResponseWriter, req *http.Request) {
+
+	userID, err := h.handleAuthorizeUser(w, req)
+	if err != nil {
+		return
+	}
+
+	balance, err := h.database.GetUserBalance(req.Context(), userID)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "Error getting data", http.StatusInternalServerError)
+		return
+	}
+
+	response, err := json.Marshal(balance)
+	if err != nil {
+		http.Error(w, "Could not serialize result",
+			http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("content-type", "application/json")
+	_, err = w.Write(response)
+	if err != nil {
+		http.Error(w, "Something went wrong",
+			http.StatusInternalServerError)
+	}
+}
