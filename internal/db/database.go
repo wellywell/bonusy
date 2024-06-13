@@ -144,10 +144,37 @@ func (d *Database) UpdateOrder(ctx context.Context, orderID int, newStatus types
 	query := `
 		UPDATE user_order
 		SET status = $1, accrual = $2
-		WHERE id = $3`
-	_, err := d.pool.Exec(ctx, query, newStatus, accrual, orderID)
+		WHERE id = $3
+		RETURNING user_id`
+
+	tx, err := d.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("Error updating order %w", err)
+		return fmt.Errorf("%w", err)
+	}
+
+	defer tx.Rollback(ctx)
+
+	row := tx.QueryRow(ctx, query, newStatus, accrual, orderID)
+
+	var userID int
+	if err := row.Scan(&userID); err != nil {
+		return fmt.Errorf("%w", err)
+	}
+
+	query = `
+		INSERT INTO balance (user_id, current, withdrawn)
+		VALUES ($1, $2, 0)
+		ON CONFLICT(user_id)
+		DO UPDATE SET current = balance.current + $2
+	`
+	_, err = tx.Exec(ctx, query, userID, accrual)
+	if err != nil {
+		return fmt.Errorf("%w", err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("%w", err)
 	}
 	return nil
 }

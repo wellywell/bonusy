@@ -375,16 +375,30 @@ func TestGetUserBalance(t *testing.T) {
 
 	cookie := getAuthCookie(t, "user1", "passw")
 
-	testCases := []struct {
-		cookie         *http.Cookie
-		expectedResult string
-	}{
+	ctx := context.Background()
+	database, err := db.NewDatabase(DBDSN)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-		{cookie: cookie, expectedResult: `{"current": 0, "withdrawn": 0}`},
+	testCases := []struct {
+		addUserBalance int
+		expectedBody   string
+	}{
+		{0, `{"current": 0, "withdrawn": 0}`},
+		{500, `{"current": 500, "withdrawn": 0}`},
+		{1, `{"current": 501, "withdrawn": 0}`},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.expectedResult, func(t *testing.T) {
+		t.Run("expectedBody", func(t *testing.T) {
+
+			if tc.addUserBalance > 0 {
+				userID, _ := database.GetUserID(ctx, "user1")
+				database.InsertUserOrder(ctx, "0", userID, "NEW")
+				err = database.UpdateOrder(ctx, 1, "PROCESSED", tc.addUserBalance)
+				assert.NoError(t, err)
+			}
 
 			req := resty.New().R()
 			req.Method = http.MethodGet
@@ -394,7 +408,7 @@ func TestGetUserBalance(t *testing.T) {
 			assert.NoError(t, err)
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode(), "Response code didn't match expected")
-			assert.JSONEq(t, tc.expectedResult, string(resp.Body()))
+			assert.JSONEq(t, tc.expectedBody, string(resp.Body()))
 		})
 	}
 }
@@ -405,8 +419,9 @@ func cleanUp(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
-		conn.Exec(context.Background(), "TRUNCATE TABLE auth_user")
-		conn.Exec(context.Background(), "TRUNCATE TABLE user_order")
+		conn.Exec(context.Background(), "TRUNCATE TABLE auth_user RESTART IDENTITY CASCADE")
+		conn.Exec(context.Background(), "TRUNCATE TABLE user_order RESTART IDENTITY CASCADE")
+		conn.Exec(context.Background(), "TRUNCATE TABLE balance RESTART IDENTITY CASCADE")
 	})
 
 }

@@ -6,6 +6,6 @@ CREATE TABLE balance (id BIGSERIAL PRIMARY KEY, user_id BIGINT, current DOUBLE P
     REFERENCES auth_user(id)
     ON DELETE NO ACTION);
 
-CREATE INDEX user_id_balance_idx ON balance(user_id);
+CREATE UNIQUE INDEX user_id_balance_idx ON balance(user_id);
 
 COMMIT;
