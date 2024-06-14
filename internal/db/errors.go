@@ -1,8 +1,11 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 )
+
+var ErrNotEnoughBalance = errors.New("Not enough balance")
 
 type UserExistsError struct {
 	Username string

@@ -29,9 +29,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	checkOrdersQueue := order.GenerateStatusTasks(ctx, database)
-	updateOrdersQueue := order.CheckAccrualOrders(ctx, checkOrdersQueue, client)
+	UpdateUnprocessedOrdersQueue := order.CheckAccrualOrders(ctx, checkOrdersQueue, client)
 
-	order.UpdateStatuses(ctx, updateOrdersQueue, database)
+	order.UpdateStatuses(ctx, UpdateUnprocessedOrdersQueue, database)
 
 	handlerSet := handlers.NewHandlerSet(conf.Secret, conf.AuthCookieExpiresIn, database)
 

@@ -29,3 +29,9 @@ type Balance struct {
 	Current   float64 `db:"current" json:"current"`
 	Withdrawn float64 `db:"withdrawn" json:"withdrawn"`
 }
+
+type Withdrawal struct {
+	Order       string    `db:"order_name" json:"order"`
+	Sum         float64   `db:"sum" json:"sum"`
+	ProcessedAt time.Time `db:"processed_at" json:"processed_at"`
+}

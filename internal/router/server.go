@@ -46,6 +46,8 @@ func NewRouter(conf *config.ServerConfig, h *handlers.HandlerSet, middlewares ..
 		r.Post("/api/user/orders", h.HandlePostUserOrder)
 		r.Get("/api/user/orders", h.HandleGetUserOrders)
 		r.Get("/api/user/balance", h.HandleGetUserBalance)
+		r.Post("/api/user/balance/withdraw", h.HandlePostWithdraw)
+		r.Get("/api/user/withdrawals", h.HandleGetUserWithdrawals)
 	})
 
 	return &Router{router: r, address: conf.RunAddress}

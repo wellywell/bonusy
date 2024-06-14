@@ -22,6 +22,7 @@ import (
 	"github.com/wellywell/bonusy/internal/db"
 	"github.com/wellywell/bonusy/internal/handlers"
 	"github.com/wellywell/bonusy/internal/testutils"
+	"github.com/wellywell/bonusy/internal/types"
 )
 
 var DBDSN string
@@ -251,10 +252,12 @@ func TestNotAuthenticated(t *testing.T) {
 		{method: http.MethodPost, path: "http://localhost:8080/api/user/orders"},
 		{method: http.MethodGet, path: "http://localhost:8080/api/user/orders"},
 		{method: http.MethodGet, path: "http://localhost:8080/api/user/balance"},
+		{method: http.MethodPost, path: "http://localhost:8080/api/user/balance/withdraw"},
+		{method: http.MethodGet, path: "http://localhost:8080/api/user/withdrawals"},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.method, func(t *testing.T) {
+		t.Run(tc.path, func(t *testing.T) {
 
 			req := resty.New().R()
 			req.Method = tc.method
@@ -369,6 +372,118 @@ func TestGetUserOrders(t *testing.T) {
 	}
 }
 
+func TestPostUserWithdraw(t *testing.T) {
+	cleanUp(t)
+
+	cookie := getAuthCookie(t, "user1", "passw")
+
+	testCases := []struct {
+		currentBalance     float64
+		wantsToWithdraw    float64
+		order              string
+		responseStatusCode int
+	}{
+		{0, 10, "0", http.StatusPaymentRequired},
+		{10, 10, "0", http.StatusOK},
+		{10, 20, "0", http.StatusPaymentRequired},
+		{10, 10, "1", http.StatusUnprocessableEntity},
+	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.responseStatusCode), func(t *testing.T) {
+			if tc.currentBalance > 0 {
+				setBalance(1, tc.currentBalance)
+			}
+			req := resty.New().R()
+			req.Method = http.MethodPost
+			req.SetBody([]byte(fmt.Sprintf(`{"order": "%s", "sum": %f}`, tc.order, tc.wantsToWithdraw)))
+			req.SetCookie(cookie)
+			req.URL = "http://localhost:8080/api/user/balance/withdraw"
+			resp, err := req.Send()
+			assert.NoError(t, err)
+
+			assert.Equal(t, tc.responseStatusCode, resp.StatusCode(), "Response code didn't match expected")
+		})
+
+		if tc.responseStatusCode == http.StatusOK {
+			conn, err := pgx.Connect(context.Background(), DBDSN)
+			if err != nil {
+				panic(err)
+			}
+			row := conn.QueryRow(context.Background(), "SELECT current, withdrawn FROM balance WHERE user_id = 1")
+			var current float64
+			var withdrawn float64
+			if err := row.Scan(&current, &withdrawn); err != nil {
+				panic(err)
+			}
+			assert.Equal(t, current, tc.currentBalance-tc.wantsToWithdraw)
+			assert.Equal(t, withdrawn, tc.wantsToWithdraw)
+
+			row = conn.QueryRow(context.Background(), "SELECT sum, order_name FROM withdrawal WHERE user_id = 1")
+
+			var sum float64
+			var order string
+			if err := row.Scan(&sum, &order); err != nil {
+				panic(err)
+			}
+			assert.Equal(t, sum, tc.wantsToWithdraw)
+			assert.Equal(t, order, tc.order)
+		}
+	}
+}
+
+func TestGetUserWithdrawals(t *testing.T) {
+
+	cleanUp(t)
+
+	cookie := getAuthCookie(t, "user1", "passw")
+
+	ti := "2024-06-12T15:13:29.681099+03:00"
+
+	testCases := []struct {
+		createWithdrawal float64
+		expectedCode     int
+		expectedBody     string
+	}{
+
+		{createWithdrawal: 0, expectedCode: http.StatusNoContent, expectedBody: ""},
+		{createWithdrawal: 100, expectedCode: http.StatusOK,
+			expectedBody: fmt.Sprintf("[{\"order\":\"0\",\"sum\":100,\"processed_at\": \"%s\"}]", ti)},
+		{createWithdrawal: 200,
+			expectedCode: http.StatusOK,
+			expectedBody: fmt.Sprintf("[{\"order\":\"0\",\"sum\":100,\"processed_at\": \"%s\"}, {\"order\":\"0\",\"sum\":200,\"processed_at\": \"%s\"}]", ti, ti)},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.expectedBody, func(t *testing.T) {
+
+			if tc.createWithdrawal > 0 {
+				conn, err := pgx.Connect(context.Background(), DBDSN)
+				if err != nil {
+					panic(err)
+				}
+				_, err = conn.Exec(context.Background(), "INSERT INTO withdrawal (user_id, sum, processed_at, order_name) VALUES (1, $1, '2024-06-12T15:13:29.681099+03:00', '0')", tc.createWithdrawal)
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			req := resty.New().R()
+			req.Method = http.MethodGet
+			req.SetCookie(cookie)
+			req.URL = "http://localhost:8080/api/user/withdrawals"
+			resp, err := req.Send()
+			assert.NoError(t, err)
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			if tc.expectedCode == http.StatusOK {
+				assert.JSONEq(t, tc.expectedBody, string(resp.Body()))
+			} else {
+				assert.Equal(t, tc.expectedBody, string(resp.Body()))
+			}
+		})
+	}
+}
+
 func TestGetUserBalance(t *testing.T) {
 
 	cleanUp(t)
@@ -383,11 +498,13 @@ func TestGetUserBalance(t *testing.T) {
 
 	testCases := []struct {
 		addUserBalance int
+		newStatus      types.Status
 		expectedBody   string
 	}{
-		{0, `{"current": 0, "withdrawn": 0}`},
-		{500, `{"current": 500, "withdrawn": 0}`},
-		{1, `{"current": 501, "withdrawn": 0}`},
+		{0, "NEW", `{"current": 0, "withdrawn": 0}`},
+		{500, "REGISTERED", `{"current": 500, "withdrawn": 0}`},
+		{1, "PROCESSED", `{"current": 501, "withdrawn": 0}`},
+		{100, "PROCESSED", `{"current": 501, "withdrawn": 0}`},
 	}
 
 	for _, tc := range testCases {
@@ -396,8 +513,7 @@ func TestGetUserBalance(t *testing.T) {
 			if tc.addUserBalance > 0 {
 				userID, _ := database.GetUserID(ctx, "user1")
 				database.InsertUserOrder(ctx, "0", userID, "NEW")
-				err = database.UpdateOrder(ctx, 1, "PROCESSED", tc.addUserBalance)
-				assert.NoError(t, err)
+				database.UpdateUnprocessedOrder(ctx, 1, tc.newStatus, tc.addUserBalance)
 			}
 
 			req := resty.New().R()
@@ -422,8 +538,21 @@ func cleanUp(t *testing.T) {
 		conn.Exec(context.Background(), "TRUNCATE TABLE auth_user RESTART IDENTITY CASCADE")
 		conn.Exec(context.Background(), "TRUNCATE TABLE user_order RESTART IDENTITY CASCADE")
 		conn.Exec(context.Background(), "TRUNCATE TABLE balance RESTART IDENTITY CASCADE")
+		conn.Exec(context.Background(), "TRUNCATE TABLE withdrawal RESTART IDENTITY CASCADE")
 	})
 
+}
+
+func setBalance(userID int, balance float64) {
+	con, err := pgx.Connect(context.Background(), DBDSN)
+	if err != nil {
+		panic(err)
+	}
+	con.Exec(context.Background(), "DELETE FROM balance WHERE user_id = $1", userID)
+	_, err = con.Exec(context.Background(), "INSERT INTO balance(user_id, current, withdrawn) VALUES ($1, $2, 0)", userID, balance)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func setTestDateTime(d time.Time) {

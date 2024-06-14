@@ -162,6 +162,52 @@ func (h *HandlerSet) HandleRegisterUser(w http.ResponseWriter, req *http.Request
 	}
 }
 
+func (h *HandlerSet) HandlePostWithdraw(w http.ResponseWriter, req *http.Request) {
+	userID, err := h.handleAuthorizeUser(w, req)
+	if err != nil {
+		return
+	}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(w, "Something went wrong",
+			http.StatusInternalServerError)
+		return
+	}
+
+	var data struct {
+		Order string  `json:"order"`
+		Sum   float64 `json:"sum"`
+	}
+
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		http.Error(w, "Could not parse body",
+			http.StatusUnprocessableEntity)
+		return
+	}
+
+	orderNum := string(data.Order)
+	if !validate.ValidateOrderNumber(orderNum) {
+		http.Error(w, "Invalid order number",
+			http.StatusUnprocessableEntity)
+		return
+	}
+
+	err = h.database.InsertWithdrawAndUpdateBalance(req.Context(), userID, data.Order, data.Sum)
+	if err != nil && errors.Is(err, db.ErrNotEnoughBalance) {
+		http.Error(w, "Not enough balance",
+			http.StatusPaymentRequired)
+		return
+	}
+	if err != nil {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+
+}
+
 func (h *HandlerSet) HandlePostUserOrder(w http.ResponseWriter, req *http.Request) {
 
 	userID, err := h.handleAuthorizeUser(w, req)
@@ -239,6 +285,39 @@ func (h *HandlerSet) HandleGetUserOrders(w http.ResponseWriter, req *http.Reques
 	}
 
 	response, err := json.Marshal(orders)
+	if err != nil {
+		http.Error(w, "Could not serialize result",
+			http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("content-type", "application/json")
+	_, err = w.Write(response)
+	if err != nil {
+		http.Error(w, "Something went wrong",
+			http.StatusInternalServerError)
+	}
+}
+
+func (h *HandlerSet) HandleGetUserWithdrawals(w http.ResponseWriter, req *http.Request) {
+
+	userID, err := h.handleAuthorizeUser(w, req)
+	if err != nil {
+		return
+	}
+
+	results, err := h.database.GetUserWithdrawals(req.Context(), userID)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "Error getting data", http.StatusInternalServerError)
+		return
+	}
+
+	if len(results) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	response, err := json.Marshal(results)
 	if err != nil {
 		http.Error(w, "Could not serialize result",
 			http.StatusInternalServerError)

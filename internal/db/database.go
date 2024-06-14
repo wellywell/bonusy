@@ -140,11 +140,51 @@ func (d *Database) GetUnprocessedOrders(ctx context.Context, startID int, limit 
 	return orders, nil
 }
 
-func (d *Database) UpdateOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error {
+func (d *Database) InsertWithdrawAndUpdateBalance(ctx context.Context, userID int, order string, sum float64) error {
+	query := `
+	    UPDATE balance
+		SET current = current - $1,
+		    withdrawn = withdrawn + $1
+		WHERE user_id = $2 AND current >= $1
+		RETURNING 1
+	`
+	tx, err := d.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("%w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	row := tx.QueryRow(ctx, query, sum, userID)
+
+	var success int
+	if err := row.Scan(&success); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w", ErrNotEnoughBalance)
+		}
+		return fmt.Errorf("unexpected DB error %w", err)
+	}
+	query = `
+		INSERT INTO withdrawal (user_id, order_name, sum)
+		VALUES ($1, $2, $3)
+	`
+	_, err = tx.Exec(ctx, query, userID, order, sum)
+	if err != nil {
+		return fmt.Errorf("unexpected DB error %w", err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("%w", err)
+	}
+	return nil
+}
+
+func (d *Database) UpdateUnprocessedOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error {
 	query := `
 		UPDATE user_order
 		SET status = $1, accrual = $2
 		WHERE id = $3
+		AND status not in ('INVALID', 'PROCESSED')
 		RETURNING user_id`
 
 	tx, err := d.pool.Begin(ctx)
@@ -177,6 +217,26 @@ func (d *Database) UpdateOrder(ctx context.Context, orderID int, newStatus types
 		return fmt.Errorf("%w", err)
 	}
 	return nil
+}
+
+func (d *Database) GetUserWithdrawals(ctx context.Context, userID int) ([]types.Withdrawal, error) {
+	query := `
+		SELECT sum, order_name, processed_at
+		FROM withdrawal
+		WHERE user_id = $1
+		ORDER BY id
+		LIMIT 1000
+		`
+	rows, err := d.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed collecting rows %w", err)
+	}
+
+	results, err := pgx.CollectRows(rows, pgx.RowToStructByName[types.Withdrawal])
+	if err != nil {
+		return nil, fmt.Errorf("failed unpacking rows %w", err)
+	}
+	return results, nil
 }
 
 func (d *Database) GetUserOrders(ctx context.Context, userID int) ([]types.OrderInfo, error) {

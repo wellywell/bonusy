@@ -22,7 +22,7 @@ type AccrualClient interface {
 
 type Database interface {
 	GetUnprocessedOrders(ctx context.Context, startID int, limit int) ([]types.OrderRecord, error)
-	UpdateOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error
+	UpdateUnprocessedOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error
 }
 
 func GenerateStatusTasks(ctx context.Context, database Database) chan types.OrderRecord {
@@ -138,7 +138,7 @@ func UpdateStatuses(ctx context.Context, tasks <-chan OrderUpdate, database Data
 				if !ok {
 					return
 				}
-				err := database.UpdateOrder(ctx, task.order.OrderID, task.status.Status, task.status.Accrual)
+				err := database.UpdateUnprocessedOrder(ctx, task.order.OrderID, task.status.Status, task.status.Accrual)
 				if err != nil {
 					logger.Error(err.Error())
 				} else {

@@ -138,7 +138,7 @@ func TestUpdateStatuses(t *testing.T) {
 
 	t.Run("update statuses", func(t *testing.T) {
 
-		d.EXPECT().UpdateOrder(timeOutCtx, 1, types.ProcessedStatus, 10).Return(nil).Once()
+		d.EXPECT().UpdateUnprocessedOrder(timeOutCtx, 1, types.ProcessedStatus, 10).Return(nil).Once()
 		UpdateStatuses(timeOutCtx, inp, d)
 		inp <- OrderUpdate{
 			order:  types.OrderRecord{OrderNum: "123", Status: "NEW", OrderID: 1},

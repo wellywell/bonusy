@@ -83,12 +83,12 @@ func (_c *Database_GetUnprocessedOrders_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
-// UpdateOrder provides a mock function with given fields: ctx, orderID, newStatus, accrual
-func (_m *Database) UpdateOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error {
+// UpdateUnprocessedOrder provides a mock function with given fields: ctx, orderID, newStatus, accrual
+func (_m *Database) UpdateUnprocessedOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error {
 	ret := _m.Called(ctx, orderID, newStatus, accrual)
 
 	if len(ret) == 0 {
-		panic("no return value specified for UpdateOrder")
+		panic("no return value specified for UpdateUnprocessedOrder")
 	}
 
 	var r0 error
@@ -101,33 +101,33 @@ func (_m *Database) UpdateOrder(ctx context.Context, orderID int, newStatus type
 	return r0
 }
 
-// Database_UpdateOrder_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateOrder'
-type Database_UpdateOrder_Call struct {
+// Database_UpdateUnprocessedOrder_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateUnprocessedOrder'
+type Database_UpdateUnprocessedOrder_Call struct {
 	*mock.Call
 }
 
-// UpdateOrder is a helper method to define mock.On call
+// UpdateUnprocessedOrder is a helper method to define mock.On call
 //   - ctx context.Context
 //   - orderID int
 //   - newStatus types.Status
 //   - accrual int
-func (_e *Database_Expecter) UpdateOrder(ctx interface{}, orderID interface{}, newStatus interface{}, accrual interface{}) *Database_UpdateOrder_Call {
-	return &Database_UpdateOrder_Call{Call: _e.mock.On("UpdateOrder", ctx, orderID, newStatus, accrual)}
+func (_e *Database_Expecter) UpdateUnprocessedOrder(ctx interface{}, orderID interface{}, newStatus interface{}, accrual interface{}) *Database_UpdateUnprocessedOrder_Call {
+	return &Database_UpdateUnprocessedOrder_Call{Call: _e.mock.On("UpdateUnprocessedOrder", ctx, orderID, newStatus, accrual)}
 }
 
-func (_c *Database_UpdateOrder_Call) Run(run func(ctx context.Context, orderID int, newStatus types.Status, accrual int)) *Database_UpdateOrder_Call {
+func (_c *Database_UpdateUnprocessedOrder_Call) Run(run func(ctx context.Context, orderID int, newStatus types.Status, accrual int)) *Database_UpdateUnprocessedOrder_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(int), args[2].(types.Status), args[3].(int))
 	})
 	return _c
 }
 
-func (_c *Database_UpdateOrder_Call) Return(_a0 error) *Database_UpdateOrder_Call {
+func (_c *Database_UpdateUnprocessedOrder_Call) Return(_a0 error) *Database_UpdateUnprocessedOrder_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *Database_UpdateOrder_Call) RunAndReturn(run func(context.Context, int, types.Status, int) error) *Database_UpdateOrder_Call {
+func (_c *Database_UpdateUnprocessedOrder_Call) RunAndReturn(run func(context.Context, int, types.Status, int) error) *Database_UpdateUnprocessedOrder_Call {
 	_c.Call.Return(run)
 	return _c
 }
