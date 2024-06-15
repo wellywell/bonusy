@@ -179,7 +179,7 @@ func (d *Database) InsertWithdrawAndUpdateBalance(ctx context.Context, userID in
 	return nil
 }
 
-func (d *Database) UpdateUnprocessedOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error {
+func (d *Database) UpdateUnprocessedOrder(ctx context.Context, orderID int, newStatus types.Status, accrual float64) error {
 	query := `
 		UPDATE user_order
 		SET status = $1, accrual = $2

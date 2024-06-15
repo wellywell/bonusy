@@ -18,7 +18,7 @@ type AccrualClient struct {
 type OrderStatus struct {
 	Order   string       `json:"order"`
 	Status  types.Status `json:"status"`
-	Accrual int          `json:"accrual"`
+	Accrual float64      `json:"accrual"`
 }
 
 type ErrThrottle struct {

@@ -84,7 +84,7 @@ func (_c *Database_GetUnprocessedOrders_Call) RunAndReturn(run func(context.Cont
 }
 
 // UpdateUnprocessedOrder provides a mock function with given fields: ctx, orderID, newStatus, accrual
-func (_m *Database) UpdateUnprocessedOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error {
+func (_m *Database) UpdateUnprocessedOrder(ctx context.Context, orderID int, newStatus types.Status, accrual float64) error {
 	ret := _m.Called(ctx, orderID, newStatus, accrual)
 
 	if len(ret) == 0 {
@@ -92,7 +92,7 @@ func (_m *Database) UpdateUnprocessedOrder(ctx context.Context, orderID int, new
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int, types.Status, int) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int, types.Status, float64) error); ok {
 		r0 = rf(ctx, orderID, newStatus, accrual)
 	} else {
 		r0 = ret.Error(0)
@@ -110,14 +110,14 @@ type Database_UpdateUnprocessedOrder_Call struct {
 //   - ctx context.Context
 //   - orderID int
 //   - newStatus types.Status
-//   - accrual int
+//   - accrual float64
 func (_e *Database_Expecter) UpdateUnprocessedOrder(ctx interface{}, orderID interface{}, newStatus interface{}, accrual interface{}) *Database_UpdateUnprocessedOrder_Call {
 	return &Database_UpdateUnprocessedOrder_Call{Call: _e.mock.On("UpdateUnprocessedOrder", ctx, orderID, newStatus, accrual)}
 }
 
-func (_c *Database_UpdateUnprocessedOrder_Call) Run(run func(ctx context.Context, orderID int, newStatus types.Status, accrual int)) *Database_UpdateUnprocessedOrder_Call {
+func (_c *Database_UpdateUnprocessedOrder_Call) Run(run func(ctx context.Context, orderID int, newStatus types.Status, accrual float64)) *Database_UpdateUnprocessedOrder_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(int), args[2].(types.Status), args[3].(int))
+		run(args[0].(context.Context), args[1].(int), args[2].(types.Status), args[3].(float64))
 	})
 	return _c
 }
@@ -127,7 +127,7 @@ func (_c *Database_UpdateUnprocessedOrder_Call) Return(_a0 error) *Database_Upda
 	return _c
 }
 
-func (_c *Database_UpdateUnprocessedOrder_Call) RunAndReturn(run func(context.Context, int, types.Status, int) error) *Database_UpdateUnprocessedOrder_Call {
+func (_c *Database_UpdateUnprocessedOrder_Call) RunAndReturn(run func(context.Context, int, types.Status, float64) error) *Database_UpdateUnprocessedOrder_Call {
 	_c.Call.Return(run)
 	return _c
 }

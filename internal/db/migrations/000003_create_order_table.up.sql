@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE TABLE user_order (id BIGSERIAL PRIMARY KEY, order_number VARCHAR(255), user_id BIGINT, accrual INTEGER, status VARCHAR(20), uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+CREATE TABLE user_order (id BIGSERIAL PRIMARY KEY, order_number VARCHAR(255), user_id BIGINT, accrual DOUBLE PRECISION, status VARCHAR(20), uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     CONSTRAINT fk_user_id
     FOREIGN KEY(user_id) 
     REFERENCES auth_user(id)

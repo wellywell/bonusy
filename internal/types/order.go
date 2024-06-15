@@ -21,7 +21,7 @@ type OrderRecord struct {
 type OrderInfo struct {
 	Number     string    `db:"order_number" json:"number"`
 	Status     Status    `db:"status" json:"status"`
-	Accrual    *int      `db:"accrual" json:"accrual"`
+	Accrual    *float64  `db:"accrual" json:"accrual"`
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
 }
 

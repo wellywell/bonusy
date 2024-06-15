@@ -22,7 +22,7 @@ type AccrualClient interface {
 
 type Database interface {
 	GetUnprocessedOrders(ctx context.Context, startID int, limit int) ([]types.OrderRecord, error)
-	UpdateUnprocessedOrder(ctx context.Context, orderID int, newStatus types.Status, accrual int) error
+	UpdateUnprocessedOrder(ctx context.Context, orderID int, newStatus types.Status, accrual float64) error
 }
 
 func GenerateStatusTasks(ctx context.Context, database Database) chan types.OrderRecord {
@@ -49,7 +49,7 @@ func GenerateStatusTasks(ctx context.Context, database Database) chan types.Orde
 			if len(records) == 0 {
 				logger.Info("All orders in DB were checked")
 				// В проде подобрать нормальное время для повторных попыток
-				time.Sleep(1 * time.Second)
+				time.Sleep(10 * time.Second)
 				startID = 0
 			}
 			for _, task := range records {

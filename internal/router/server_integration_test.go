@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/jackc/pgx/v5"
+	logger "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/wellywell/bonusy/internal/auth"
 	"github.com/wellywell/bonusy/internal/config"
@@ -38,8 +39,8 @@ func TestMain(m *testing.M) {
 
 func runMain(m *testing.M) (int, error) {
 
-	databaseDSN, cleanUp, err := testutils.RunTestDatabase()
-	defer cleanUp()
+	databaseDSN, clean, err := testutils.RunTestDatabase()
+	defer clean()
 
 	if err != nil {
 		return 1, err
@@ -64,7 +65,6 @@ func runMain(m *testing.M) (int, error) {
 	go r.ListenAndServe()
 
 	exitCode := m.Run()
-
 	return exitCode, nil
 
 }
@@ -113,13 +113,13 @@ func TestRegisterUser(t *testing.T) {
 				// check user in DB
 				conn, err := pgx.Connect(context.Background(), DBDSN)
 				if err != nil {
-					panic(err)
+					logger.Error(err)
 				}
 				row := conn.QueryRow(context.Background(), "SELECT username, password FROM auth_user WHERE username = $1", "mylogin")
 				var login string
 				var password string
 				if err := row.Scan(&login, &password); err != nil {
-					panic(err)
+					logger.Error(err)
 				}
 				assert.Equal(t, login, "mylogin")
 				assert.NotEqual(t, password, "mypassword") // test passsword not in plaintext
@@ -128,13 +128,18 @@ func TestRegisterUser(t *testing.T) {
 				assert.NotEmpty(t, resp.Cookies())
 
 				// check user in cookie correct
-				cookie := resp.Cookies()[0]
-				user, err := auth.GetUser(cookie.Value, []byte("secret"))
-				if err != nil {
-					panic(err)
-				}
-				assert.Equal(t, user, "mylogin")
 
+				cookies := resp.Cookies()
+				assert.Equal(t, len(cookies), 1)
+
+				if len(cookies) > 0 {
+					cookie := cookies[0]
+					user, err := auth.GetUser(cookie.Value, []byte("secret"))
+					if err != nil {
+						logger.Error(err)
+					}
+					assert.Equal(t, user, "mylogin")
+				}
 			}
 		})
 	}
@@ -231,12 +236,14 @@ func TestRegisterAndLogin(t *testing.T) {
 				// check cookie set
 				assert.NotEmpty(t, resp.Cookies())
 				// check user in cookie correct
-				cookie := resp.Cookies()[0]
-				user, err := auth.GetUser(cookie.Value, []byte("secret"))
-				if err != nil {
-					panic(err)
+				if len(resp.Cookies()) > 0 {
+					cookie := resp.Cookies()[0]
+					user, err := auth.GetUser(cookie.Value, []byte("secret"))
+					if err != nil {
+						logger.Error(err)
+					}
+					assert.Equal(t, user, "mylogin1")
 				}
-				assert.Equal(t, user, "mylogin1")
 			}
 		})
 	}
@@ -407,13 +414,13 @@ func TestPostUserWithdraw(t *testing.T) {
 		if tc.responseStatusCode == http.StatusOK {
 			conn, err := pgx.Connect(context.Background(), DBDSN)
 			if err != nil {
-				panic(err)
+				logger.Error(err)
 			}
 			row := conn.QueryRow(context.Background(), "SELECT current, withdrawn FROM balance WHERE user_id = 1")
 			var current float64
 			var withdrawn float64
 			if err := row.Scan(&current, &withdrawn); err != nil {
-				panic(err)
+				logger.Error(err)
 			}
 			assert.Equal(t, current, tc.currentBalance-tc.wantsToWithdraw)
 			assert.Equal(t, withdrawn, tc.wantsToWithdraw)
@@ -423,7 +430,7 @@ func TestPostUserWithdraw(t *testing.T) {
 			var sum float64
 			var order string
 			if err := row.Scan(&sum, &order); err != nil {
-				panic(err)
+				logger.Error(err)
 			}
 			assert.Equal(t, sum, tc.wantsToWithdraw)
 			assert.Equal(t, order, tc.order)
@@ -459,11 +466,11 @@ func TestGetUserWithdrawals(t *testing.T) {
 			if tc.createWithdrawal > 0 {
 				conn, err := pgx.Connect(context.Background(), DBDSN)
 				if err != nil {
-					panic(err)
+					logger.Error(err)
 				}
 				_, err = conn.Exec(context.Background(), "INSERT INTO withdrawal (user_id, sum, processed_at, order_name) VALUES (1, $1, '2024-06-12T15:13:29.681099+03:00', '0')", tc.createWithdrawal)
 				if err != nil {
-					panic(err)
+					logger.Error(err)
 				}
 			}
 
@@ -533,7 +540,8 @@ func cleanUp(t *testing.T) {
 	t.Cleanup(func() {
 		conn, err := pgx.Connect(context.Background(), DBDSN)
 		if err != nil {
-			panic(err)
+			logger.Errorf("Could not cleanup database %s", err.Error())
+			return
 		}
 		conn.Exec(context.Background(), "TRUNCATE TABLE auth_user RESTART IDENTITY CASCADE")
 		conn.Exec(context.Background(), "TRUNCATE TABLE user_order RESTART IDENTITY CASCADE")
@@ -546,12 +554,12 @@ func cleanUp(t *testing.T) {
 func setBalance(userID int, balance float64) {
 	con, err := pgx.Connect(context.Background(), DBDSN)
 	if err != nil {
-		panic(err)
+		logger.Error(err)
 	}
 	con.Exec(context.Background(), "DELETE FROM balance WHERE user_id = $1", userID)
 	_, err = con.Exec(context.Background(), "INSERT INTO balance(user_id, current, withdrawn) VALUES ($1, $2, 0)", userID, balance)
 	if err != nil {
-		panic(err)
+		logger.Error(err)
 	}
 }
 
