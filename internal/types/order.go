@@ -1,0 +1,37 @@
+package types
+
+import "time"
+
+type Status string
+
+const (
+	NewStatus        Status = "NEW"
+	ProcessingStatus Status = "PROCESSING"
+	InvalidStatus    Status = "INVALID"
+	ProcessedStatus  Status = "PROCESSED"
+	RegisteredStatus Status = "REGISTERED"
+)
+
+type OrderRecord struct {
+	OrderNum string `db:"order_number"`
+	Status   Status `db:"status"`
+	OrderID  int    `db:"id"`
+}
+
+type OrderInfo struct {
+	Number     string    `db:"order_number" json:"number"`
+	Status     Status    `db:"status" json:"status"`
+	Accrual    *float64  `db:"accrual" json:"accrual"`
+	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
+}
+
+type Balance struct {
+	Current   float64 `db:"current" json:"current"`
+	Withdrawn float64 `db:"withdrawn" json:"withdrawn"`
+}
+
+type Withdrawal struct {
+	Order       string    `db:"order_name" json:"order"`
+	Sum         float64   `db:"sum" json:"sum"`
+	ProcessedAt time.Time `db:"processed_at" json:"processed_at"`
+}
