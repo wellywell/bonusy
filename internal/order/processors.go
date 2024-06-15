@@ -48,7 +48,8 @@ func GenerateStatusTasks(ctx context.Context, database Database) chan types.Orde
 			}
 			if len(records) == 0 {
 				logger.Info("All orders in DB were checked")
-				time.Sleep(30 * time.Second)
+				// В проде подобрать нормальное время для повторных попыток
+				time.Sleep(1 * time.Second)
 				startID = 0
 			}
 			for _, task := range records {
