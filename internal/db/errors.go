@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-var ErrNotEnoughBalance = errors.New("Not enough balance")
+var ErrNotEnoughBalance = errors.New("not enough balance")
 
 type UserExistsError struct {
 	Username string

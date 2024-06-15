@@ -252,7 +252,7 @@ func (h *HandlerSet) handleAuthorizeUser(w http.ResponseWriter, req *http.Reques
 	if !ok {
 		http.Error(w, "Something went wrong",
 			http.StatusInternalServerError)
-		return 0, fmt.Errorf("Authentication error")
+		return 0, fmt.Errorf("authentication error")
 	}
 
 	userID, err := h.database.GetUserID(req.Context(), username)

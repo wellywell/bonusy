@@ -78,7 +78,7 @@ func Test_retryThrottle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			if tt.wantError != nil && tt.throttleTimes > 0 {
-				for _ = range tt.throttleTimes {
+				for range tt.throttleTimes {
 					c.EXPECT().GetOrderStatus("123").Return(nil, tt.wantError).Once()
 				}
 				c.EXPECT().GetOrderStatus("123").Return(tt.result, nil).Once()
