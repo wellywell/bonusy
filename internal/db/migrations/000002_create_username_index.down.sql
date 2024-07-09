@@ -1,0 +1,5 @@
+BEGIN;
+
+DROP INDEX username_index IF EXISTS;
+
+ROLLBACK;
